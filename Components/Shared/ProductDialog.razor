@@ -1,0 +1,98 @@
+@if (Visible)
+{
+    <div class="modal-backdrop" role="presentation" @onclick="Cancel">
+        <section class="product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-dialog-title" @onclick:stopPropagation="true">
+            <div class="dialog-heading">
+                <div>
+                    <p class="eyebrow">PRODUCT DETAILS</p>
+                    <h2 id="product-dialog-title">@(draft.Id == 0 ? "Add product" : "Edit product")</h2>
+                </div>
+                <button type="button" class="icon-button" aria-label="Close dialog" @onclick="Cancel">×</button>
+            </div>
+            <EditForm Model="draft" OnValidSubmit="SaveAsync">
+                <AlertBanner Type="danger" Message="@ErrorMessage" />
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <div class="form-grid">
+                    <label class="form-field">
+                        <span>Product name</span>
+                        <InputText @bind-Value="draft.Name" placeholder="e.g. Wireless headphones" />
+                        <ValidationMessage For="@(() => draft.Name)" />
+                    </label>
+                    <label class="form-field">
+                        <span>SKU</span>
+                        <InputText @bind-Value="draft.Sku" placeholder="e.g. EL-2048" />
+                        <ValidationMessage For="@(() => draft.Sku)" />
+                    </label>
+                    <label class="form-field">
+                        <span>Category</span>
+                        <InputText @bind-Value="draft.Category" placeholder="e.g. Electronics" />
+                        <ValidationMessage For="@(() => draft.Category)" />
+                    </label>
+                    <label class="form-field">
+                        <span>Quantity in stock</span>
+                        <InputNumber @bind-Value="draft.Quantity" min="0" />
+                        <ValidationMessage For="@(() => draft.Quantity)" />
+                    </label>
+                    <label class="form-field">
+                        <span>Unit price</span>
+                        <InputNumber @bind-Value="draft.UnitPrice" min="0" step="0.01" />
+                        <ValidationMessage For="@(() => draft.UnitPrice)" />
+                    </label>
+                    <label class="form-field">
+                        <span>Reorder at</span>
+                        <InputNumber @bind-Value="draft.ReorderLevel" min="0" />
+                        <ValidationMessage For="@(() => draft.ReorderLevel)" />
+                    </label>
+                </div>
+                <div class="dialog-actions">
+                    <button type="button" class="button button-quiet" @onclick="Cancel">Cancel</button>
+                    <button type="submit" class="button button-primary">Save product</button>
+                </div>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public Product? Product { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+    [Parameter] public EventCallback<Product> OnSave { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private Product draft = new();
+    private bool wasVisible;
+    private int? loadedProductId;
+
+    protected override void OnParametersSet()
+    {
+        if (!Visible)
+        {
+            wasVisible = false;
+            return;
+        }
+
+        if (wasVisible && loadedProductId == Product?.Id)
+            return;
+
+        draft = Product is null
+            ? new Product()
+            : new Product
+            {
+                Id = Product.Id,
+                Sku = Product.Sku,
+                Name = Product.Name,
+                Category = Product.Category,
+                Quantity = Product.Quantity,
+                UnitPrice = Product.UnitPrice,
+                ReorderLevel = Product.ReorderLevel,
+                UpdatedAt = Product.UpdatedAt
+            };
+        loadedProductId = Product?.Id;
+        wasVisible = true;
+    }
+
+    private Task SaveAsync() => OnSave.InvokeAsync(draft);
+    private Task Cancel() => OnCancel.InvokeAsync();
+}

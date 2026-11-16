@@ -1,0 +1,63 @@
+@inherits LayoutComponentBase
+
+<div class="workspace-shell @(sidebarOpen ? "sidebar-expanded" : "sidebar-collapsed")">
+    <aside class="sidebar">
+        <a class="brand" href="/" aria-label="Stockroom home">
+            <span class="brand-mark">S</span>
+            <span class="brand-name">stockroom<span>.</span></span>
+        </a>
+
+        <div class="sidebar-section-label">WORKSPACE</div>
+        <nav class="side-nav" aria-label="Main navigation">
+            <NavLink href="/" Match="NavLinkMatch.All" class="side-link">
+                <span class="nav-icon">⌂</span><span class="nav-label">Overview</span>
+            </NavLink>
+            <a href="/#inventory" class="side-link">
+                <span class="nav-icon">▤</span><span class="nav-label">Inventory</span>
+            </a>
+            <a href="/#categories" class="side-link">
+                <span class="nav-icon">◫</span><span class="nav-label">Categories</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-bottom">
+            <div class="workspace-card">
+                <span class="workspace-avatar">W</span>
+                <span class="workspace-copy"><strong>Workspace</strong><small>Local inventory</small></span>
+                <span class="workspace-chevron">⌄</span>
+            </div>
+            <div class="sidebar-footer">STOCKROOM <span>v1.0</span></div>
+        </div>
+    </aside>
+
+    @if (sidebarOpen)
+    {
+        <button type="button" class="sidebar-scrim" aria-label="Close navigation" @onclick="ToggleSidebar"></button>
+    }
+
+    <div class="main-column">
+        <header class="topbar">
+            <button type="button" class="icon-button menu-toggle" aria-label="Toggle navigation" aria-expanded="@sidebarOpen" @onclick="ToggleSidebar">
+                <span>☰</span>
+            </button>
+            <div class="topbar-context"><span>Workspace</span><span class="crumb-divider">/</span><strong>Overview</strong></div>
+            <div class="topbar-right">
+                <span class="connection-status"><span class="status-dot"></span> Local database</span>
+                <span class="user-avatar" aria-label="User">A</span>
+            </div>
+        </header>
+
+        <GlobalProgressBar />
+        <main class="page-content">
+            @Body
+        </main>
+        <footer class="page-footer"><span>Stockroom Inventory</span><span>Made for getting things in order.</span></footer>
+    </div>
+</div>
+<ToastHost />
+
+@code {
+    private bool sidebarOpen = true;
+
+    private void ToggleSidebar() => sidebarOpen = !sidebarOpen;
+}

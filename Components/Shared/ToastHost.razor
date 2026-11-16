@@ -1,0 +1,53 @@
+@implements IDisposable
+@inject ToastService Toasts
+
+<div class="toast-stack" aria-live="polite" aria-atomic="false">
+    @foreach (var toast in messages)
+    {
+        <div @key="toast.Id" class="toast toast-@toast.Kind.ToString().ToLowerInvariant()" role="status">
+            <span class="toast-icon">@(toast.Kind == ToastKind.Error ? "!" : "✓")</span>
+            <span>@toast.Message</span>
+            <button type="button" aria-label="Dismiss notification" @onclick="() => Dismiss(toast.Id)">×</button>
+        </div>
+    }
+</div>
+
+@code {
+    private readonly List<ToastMessage> messages = [];
+    private readonly CancellationTokenSource lifetime = new();
+
+    protected override void OnInitialized() => Toasts.ToastAdded += OnToastAdded;
+
+    private void OnToastAdded(ToastMessage toast) => _ = AddAndExpireAsync(toast);
+
+    private async Task AddAndExpireAsync(ToastMessage toast)
+    {
+        await InvokeAsync(() =>
+        {
+            messages.Add(toast);
+            StateHasChanged();
+        });
+
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), lifetime.Token);
+            await InvokeAsync(() => Dismiss(toast.Id));
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+    }
+
+    private void Dismiss(Guid id)
+    {
+        messages.RemoveAll(message => message.Id == id);
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        Toasts.ToastAdded -= OnToastAdded;
+        lifetime.Cancel();
+        lifetime.Dispose();
+    }
+}

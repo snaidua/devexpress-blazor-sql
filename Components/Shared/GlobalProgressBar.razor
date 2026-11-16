@@ -1,0 +1,14 @@
+@implements IDisposable
+@inject BusyIndicatorService Busy
+
+<div class="global-progress @(Busy.IsBusy ? "is-visible" : "")" role="progressbar" aria-label="Loading">
+    <span></span>
+</div>
+
+@code {
+    protected override void OnInitialized() => Busy.Changed += OnBusyChanged;
+
+    private void OnBusyChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Busy.Changed -= OnBusyChanged;
+}

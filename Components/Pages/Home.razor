@@ -1,0 +1,281 @@
+@page "/"
+@inject InventoryService Inventory
+@inject BusyIndicatorService Busy
+@inject ToastService Toasts
+@inject ILogger<Home> Logger
+
+<PageTitle>Inventory overview | Stockroom</PageTitle>
+
+<div class="page-heading" id="overview">
+    <div>
+        <p class="eyebrow">@TodayLabel · YOUR INVENTORY AT A GLANCE</p>
+        <h1>@Greeting<span class="heading-period">.</span></h1>
+        <p class="page-subtitle">Here’s what’s happening with your stock today.</p>
+    </div>
+    <button type="button" class="button button-primary" @onclick="StartAdd">
+        <span class="button-plus">+</span> Add product
+    </button>
+</div>
+
+<AlertBanner Type="danger" Message="@errorMessage" OnDismiss="DismissError" />
+
+<section class="metrics-grid" aria-label="Inventory summary">
+    <article class="metric-card">
+        <div class="metric-top"><span class="metric-label">Total products</span><span class="metric-icon metric-icon-blue">▤</span></div>
+        <div class="metric-value">@products.Count.ToString("N0")</div>
+        <div class="metric-note">Unique items in your catalog</div>
+    </article>
+    <article class="metric-card">
+        <div class="metric-top"><span class="metric-label">Units in stock</span><span class="metric-icon metric-icon-violet">▥</span></div>
+        <div class="metric-value">@products.Sum(product => product.Quantity).ToString("N0")</div>
+        <div class="metric-note">Across all products</div>
+    </article>
+    <article class="metric-card">
+        <div class="metric-top"><span class="metric-label">Inventory value</span><span class="metric-icon metric-icon-green">$</span></div>
+        <div class="metric-value">@products.Sum(product => product.Quantity * product.UnitPrice).ToString("C0")</div>
+        <div class="metric-note">Based on current unit prices</div>
+    </article>
+    <article class="metric-card metric-card-alert">
+        <div class="metric-top"><span class="metric-label">Low stock</span><span class="metric-icon metric-icon-orange">⌁</span></div>
+        <div class="metric-value">@LowStockCount</div>
+        <div class="metric-note">Products at or below reorder level</div>
+    </article>
+</section>
+
+<section class="inventory-panel" id="inventory">
+    <div class="panel-heading">
+        <div>
+            <div class="panel-title-row"><h2>Inventory</h2><span class="count-badge">@FilteredProducts.Count()</span></div>
+            <p class="panel-subtitle">Manage and keep track of your products.</p>
+        </div>
+        <div class="table-tools">
+            <label class="search-box">
+                <span aria-hidden="true">⌕</span>
+                <input type="search" placeholder="Search products..." aria-label="Search products" @bind="searchText" @bind:event="oninput" />
+            </label>
+            <select class="select-control" aria-label="Filter by category" @bind="selectedCategory">
+                <option>All categories</option>
+                @foreach (var category in Categories)
+                {
+                    <option>@category</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <div class="grid-container">
+        <DxGrid Data="@FilteredProducts" KeyFieldName="Id" PageSize="8" CssClass="inventory-grid">
+            <Columns>
+                <DxGridDataColumn FieldName="@nameof(Product.Sku)" Caption="SKU" Width="115px" />
+                <DxGridDataColumn FieldName="@nameof(Product.Name)" Caption="Product" MinWidth="180" />
+                <DxGridDataColumn FieldName="@nameof(Product.Category)" Caption="Category" Width="145px" />
+                <DxGridDataColumn FieldName="@nameof(Product.Quantity)" Caption="In stock" Width="110px">
+                    <CellDisplayTemplate Context="cell">
+                        @{
+                            var product = (Product)cell.DataItem;
+                        }
+                        <span class="stock-value @(product.Quantity <= product.ReorderLevel ? "stock-low" : "stock-good")">@product.Quantity</span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="@nameof(Product.UnitPrice)" Caption="Unit price" DisplayFormat="C2" Width="125px" />
+                <DxGridDataColumn Caption="" Width="116px">
+                    <CellDisplayTemplate Context="cell">
+                        @{
+                            var product = (Product)cell.DataItem;
+                        }
+                        <div class="row-actions">
+                            <button type="button" class="row-action" aria-label="@($"Edit {product.Name}")" @onclick="() => StartEdit(product)">Edit</button>
+                            <button type="button" class="row-action row-action-delete" aria-label="@($"Delete {product.Name}")" @onclick="() => StartDelete(product)">Delete</button>
+                        </div>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+            </Columns>
+        </DxGrid>
+        @if (!isLoading && errorMessage is null && FilteredProducts.Count == 0)
+        {
+            <div class="empty-state">
+                <span class="empty-state-icon">⌕</span>
+                <strong>No products found</strong>
+                <span>Try a different search or add a new product.</span>
+            </div>
+        }
+    </div>
+</section>
+
+<section class="category-section" id="categories">
+    <div class="section-heading">
+        <div><h2>Categories</h2><p class="panel-subtitle">A quick breakdown of your product mix.</p></div>
+    </div>
+    <div class="category-grid">
+        @foreach (var category in Categories)
+        {
+            var categoryProducts = products.Where(product => product.Category == category).ToList();
+            <button type="button" class="category-card" @onclick="() => selectedCategory = category">
+                <span class="category-mark">@category.Substring(0, 1).ToUpperInvariant()</span>
+                <span class="category-copy"><strong>@category</strong><small>@categoryProducts.Count products · @categoryProducts.Sum(product => product.Quantity) units</small></span>
+                <span class="category-arrow">↗</span>
+            </button>
+        }
+        @if (Categories.Count == 0)
+        {
+            <div class="category-empty">Categories appear here when you add products.</div>
+        }
+    </div>
+</section>
+
+<ProductDialog Visible="@productDialogVisible" Product="@editingProduct" ErrorMessage="@errorMessage" OnSave="SaveProductAsync" OnCancel="CloseProductDialog" />
+<ConfirmDialog Visible="@confirmDeleteVisible"
+               Title="Delete product?"
+               Message="@($"Delete {productToDelete?.Name ?? "this product"} from your inventory? This action cannot be undone.")"
+               OnConfirm="DeleteProductAsync"
+               OnCancel="CancelDelete" />
+
+@code {
+    private IReadOnlyList<Product> products = [];
+    private string? errorMessage;
+    private string searchText = string.Empty;
+    private string selectedCategory = "All categories";
+    private bool isLoading = true;
+    private bool productDialogVisible;
+    private bool confirmDeleteVisible;
+    private Product? editingProduct;
+    private Product? productToDelete;
+
+    private string TodayLabel => DateTime.Now.ToString("dddd, MMMM d").ToUpperInvariant();
+    private string Greeting => DateTime.Now.Hour < 12 ? "Good morning" : DateTime.Now.Hour < 18 ? "Good afternoon" : "Good evening";
+    private int LowStockCount => products.Count(product => product.Quantity <= product.ReorderLevel);
+
+    private List<string> Categories => products
+        .Select(product => product.Category)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(category => category)
+        .ToList();
+
+    private List<Product> FilteredProducts => products
+        .Where(product => selectedCategory == "All categories" ||
+                          string.Equals(product.Category, selectedCategory, StringComparison.OrdinalIgnoreCase))
+        .Where(product => string.IsNullOrWhiteSpace(searchText) ||
+                          product.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                          product.Sku.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                          product.Category.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
+    protected override async Task OnInitializedAsync() => await LoadProductsAsync();
+
+    private async Task LoadProductsAsync()
+    {
+        isLoading = true;
+        Busy.SetBusy(true);
+        errorMessage = null;
+        try
+        {
+            await Inventory.InitializeAsync();
+            products = await Inventory.GetProductsAsync();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Unable to initialize or load inventory data.");
+            errorMessage = "Could not connect to SQL Server LocalDB. Check that LocalDB is installed and running, then try again.";
+        }
+        finally
+        {
+            isLoading = false;
+            Busy.SetBusy(false);
+        }
+    }
+
+    private void StartAdd()
+    {
+        errorMessage = null;
+        editingProduct = null;
+        productDialogVisible = true;
+    }
+
+    private void StartEdit(Product product)
+    {
+        errorMessage = null;
+        editingProduct = product;
+        productDialogVisible = true;
+    }
+
+    private Task CloseProductDialog()
+    {
+        productDialogVisible = false;
+        editingProduct = null;
+        return Task.CompletedTask;
+    }
+
+    private async Task SaveProductAsync(Product product)
+    {
+        var isNewProduct = product.Id == 0;
+        Busy.SetBusy(true);
+        errorMessage = null;
+        try
+        {
+            await Inventory.SaveProductAsync(product);
+            products = await Inventory.GetProductsAsync();
+            productDialogVisible = false;
+            editingProduct = null;
+            Toasts.Show(isNewProduct ? "Product added to your inventory." : "Product details updated.");
+        }
+        catch (InvalidOperationException exception)
+        {
+            errorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Unable to save product {Sku}.", product.Sku);
+            errorMessage = "The product could not be saved. Check the database connection and try again.";
+        }
+        finally
+        {
+            Busy.SetBusy(false);
+        }
+    }
+
+    private void StartDelete(Product product)
+    {
+        productToDelete = product;
+        confirmDeleteVisible = true;
+    }
+
+    private Task CancelDelete()
+    {
+        confirmDeleteVisible = false;
+        productToDelete = null;
+        return Task.CompletedTask;
+    }
+
+    private async Task DeleteProductAsync()
+    {
+        if (productToDelete is null)
+            return;
+
+        var id = productToDelete.Id;
+        Busy.SetBusy(true);
+        errorMessage = null;
+        try
+        {
+            await Inventory.DeleteProductAsync(id);
+            products = await Inventory.GetProductsAsync();
+            confirmDeleteVisible = false;
+            productToDelete = null;
+            Toasts.Show("Product removed from your inventory.", ToastKind.Info);
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Unable to delete product {ProductId}.", id);
+            errorMessage = exception is InvalidOperationException
+                ? exception.Message
+                : "The product could not be deleted. Check the database connection and try again.";
+            confirmDeleteVisible = false;
+            productToDelete = null;
+        }
+        finally
+        {
+            Busy.SetBusy(false);
+        }
+    }
+
+    private void DismissError() => errorMessage = null;
+}
