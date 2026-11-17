@@ -97,6 +97,27 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> conte
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task DeleteProductsAsync(IReadOnlyCollection<int> ids, CancellationToken cancellationToken = default)
+    {
+        var productIds = ids.Distinct().ToArray();
+        if (productIds.Length == 0)
+            return;
+
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var products = await db.Products
+            .Where(product => productIds.Contains(product.Id))
+            .ToListAsync(cancellationToken);
+        if (products.Count != productIds.Length)
+            throw new InvalidOperationException("One or more selected items no longer exist. Refresh the inventory and try again.");
+        if (await db.InventoryTransactions.AnyAsync(transaction => productIds.Contains(transaction.ProductId), cancellationToken))
+            throw new InvalidOperationException("One or more selected items have posted transactions and cannot be deleted.");
+        if (await db.StockAdjustmentLines.AnyAsync(line => productIds.Contains(line.ProductId), cancellationToken))
+            throw new InvalidOperationException("One or more selected items have posted stock adjustments and cannot be deleted.");
+
+        db.Products.RemoveRange(products);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Vendor>> GetVendorsAsync(CancellationToken cancellationToken = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);

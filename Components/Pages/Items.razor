@@ -12,33 +12,46 @@
         <h1>Item master<span class="heading-period">.</span></h1>
         <p class="page-subtitle">Maintain item details. On-hand stock is updated by posted transactions.</p>
     </div>
-    <button type="button" class="button button-primary" @onclick="AddItemAsync">+ Add item</button>
 </div>
 
 <AlertBanner Type="danger" Message="@errorMessage" OnDismiss="DismissError" />
 
 <section class="inventory-panel master-panel">
-    <div class="panel-heading">
-        <div>
-            <div class="panel-title-row"><span class="panel-icon" aria-hidden="true">▦</span><h2>Items</h2></div>
-            <p class="panel-subtitle">Click a cell to edit. Changes save when you leave the cell.</p>
+    <div class="panel-heading item-grid-header">
+        <GridToolbar OnAdd="AddItemAsync"
+                     OnInsert="InsertItemAsync"
+                     OnDelete="DeleteSelectedItems"
+                     OnReset="ResetGridAsync"
+                     CanDelete="@selectedDataItems.Any()"
+                     IconOnly="true"
+                     InHeader="true" />
+        <div class="item-grid-title">
+            <div class="panel-title-row"><span class="panel-icon" aria-hidden="true">▦</span><h2>Items</h2><span class="count-badge">@FilteredItems.Count</span></div>
         </div>
-        <div class="table-tools">
-            <span class="grid-row-count">@items.Count rows</span>
-            <span class="edit-hint">✎ &nbsp; CELL EDITING</span>
+        <div class="item-grid-filters">
+            <select class="select-control" aria-label="Filter by column" @bind="selectedFilterColumn">
+                <option value="All">All columns</option>
+                <option value="@nameof(Product.Sku)">SKU</option>
+                <option value="@nameof(Product.Name)">Item name</option>
+                <option value="@nameof(Product.Category)">Category</option>
+                <option value="@nameof(Product.Quantity)">On hand</option>
+                <option value="@nameof(Product.UnitPrice)">Unit cost</option>
+                <option value="@nameof(Product.ReorderLevel)">Reorder level</option>
+            </select>
+            <input class="column-filter-input"
+                   type="search"
+                   placeholder="Filter items..."
+                   aria-label="Filter items by selected column"
+                   @bind="columnFilterText"
+                   @bind:event="oninput" />
         </div>
     </div>
-    <GridToolbar OnAdd="AddItemAsync"
-                 OnInsert="InsertItemAsync"
-                 OnDelete="DeleteSelectedItem"
-                 OnReset="ResetGridAsync"
-                 CanDelete="@(selectedDataItem is Product)" />
     <div class="grid-container">
         <DxGrid @ref="grid"
-                Data="@items"
+                Data="@FilteredItems"
                 KeyFieldName="@nameof(Product.Id)"
-                SelectionMode="GridSelectionMode.Single"
-                @bind-SelectedDataItem="selectedDataItem"
+                SelectionMode="GridSelectionMode.Multiple"
+                @bind-SelectedDataItems="selectedDataItems"
                 EditMode="GridEditMode.EditCell"
                 @bind-EditNewRowPosition="editNewRowPosition"
                 CustomizeEditModel="CustomizeEditModel"
@@ -50,6 +63,13 @@
                 ShowFilterRow="true"
                 CssClass="inventory-grid">
             <Columns>
+                <DxGridSelectionColumn AllowSelectAll="false" Width="42px" />
+                <DxGridDataColumn FieldName="@nameof(Product.Id)" Caption="#" Width="54px" AllowSort="false">
+                    <CellDisplayTemplate Context="cell">
+                        <span class="grid-row-number">@(cell.VisibleIndex + 1)</span>
+                    </CellDisplayTemplate>
+                    <FilterRowCellTemplate></FilterRowCellTemplate>
+                </DxGridDataColumn>
                 <DxGridDataColumn FieldName="@nameof(Product.Sku)" Caption="SKU" Width="140px" />
                 <DxGridDataColumn FieldName="@nameof(Product.Name)" Caption="Item name" MinWidth="190" />
                 <DxGridDataColumn FieldName="@nameof(Product.Category)" Caption="Category" Width="160px" />
@@ -65,9 +85,12 @@
                 <DxGridDataColumn FieldName="@nameof(Product.ReorderLevel)" Caption="Reorder level" Width="135px" />
             </Columns>
         </DxGrid>
-        @if (items.Count == 0 && errorMessage is null)
+        @if (FilteredItems.Count == 0 && errorMessage is null)
         {
-            <div class="empty-state"><strong>No items yet</strong><span>Add an item to start managing inventory.</span></div>
+            <div class="empty-state">
+                <strong>@(items.Count == 0 ? "No items yet" : "No matching items")</strong>
+                <span>@(items.Count == 0 ? "Add an item to start managing inventory." : "Try a different column filter.")</span>
+            </div>
         }
     </div>
 </section>
@@ -75,12 +98,29 @@
 @code {
     private DxGrid? grid;
     private List<Product> items = [];
-    private object? selectedDataItem;
+    private IReadOnlyList<object> selectedDataItems = Array.Empty<object>();
     private GridEditNewRowPosition editNewRowPosition = GridEditNewRowPosition.Bottom;
     private int pageIndex;
-    private Product? productToDelete;
+    private List<Product> productsToDelete = [];
     private bool confirmDeleteVisible;
     private string? errorMessage;
+    private string selectedFilterColumn = "All";
+    private string columnFilterText = string.Empty;
+
+    private List<Product> FilteredItems => items
+        .Where(item => string.IsNullOrWhiteSpace(columnFilterText) || selectedFilterColumn switch
+        {
+            nameof(Product.Sku) => Matches(item.Sku),
+            nameof(Product.Name) => Matches(item.Name),
+            nameof(Product.Category) => Matches(item.Category),
+            nameof(Product.Quantity) => Matches(item.Quantity.ToString()),
+            nameof(Product.UnitPrice) => Matches(item.UnitPrice.ToString()),
+            nameof(Product.ReorderLevel) => Matches(item.ReorderLevel.ToString()),
+            _ => Matches(item.Sku) || Matches(item.Name) || Matches(item.Category) ||
+                 Matches(item.Quantity.ToString()) || Matches(item.UnitPrice.ToString()) ||
+                 Matches(item.ReorderLevel.ToString())
+        })
+        .ToList();
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -126,22 +166,30 @@
         await grid.StartEditNewRowAsync(nameof(Product.Name));
     }
 
-    private void DeleteSelectedItem()
+    private static bool Matches(string value, string filter) =>
+        value.Contains(filter, StringComparison.OrdinalIgnoreCase);
+
+    private bool Matches(string value) => Matches(value, columnFilterText);
+
+    private void DeleteSelectedItems()
     {
-        if (selectedDataItem is Product item)
+        productsToDelete = selectedDataItems.OfType<Product>().ToList();
+        if (productsToDelete.Count > 0)
         {
-            productToDelete = item;
             confirmDeleteVisible = true;
         }
     }
 
     private Task ResetGridAsync()
     {
-        selectedDataItem = null;
+        selectedFilterColumn = "All";
+        columnFilterText = string.Empty;
+        selectedDataItems = Array.Empty<object>();
         if (grid is not null)
         {
             grid.ClearFilter();
             grid.ClearSort();
+            grid.ClearSelection();
             pageIndex = 0;
         }
         return Task.CompletedTask;
@@ -150,24 +198,26 @@
     private Task CancelDeleteAsync()
     {
         confirmDeleteVisible = false;
-        productToDelete = null;
+        productsToDelete = [];
         return Task.CompletedTask;
     }
 
     private async Task ConfirmDeleteAsync()
     {
-        if (productToDelete is null)
+        if (productsToDelete.Count == 0)
             return;
 
-        var product = productToDelete;
+        var productIds = productsToDelete.Select(product => product.Id).ToArray();
+        var count = productIds.Length;
         Busy.SetBusy(true);
         errorMessage = null;
         try
         {
-            await Inventory.DeleteProductAsync(product.Id);
+            await Inventory.DeleteProductsAsync(productIds);
             items = (await Inventory.GetProductsAsync()).ToList();
-            selectedDataItem = null;
-            Toasts.Show("Item removed.", ToastKind.Info);
+            selectedDataItems = Array.Empty<object>();
+            grid?.ClearSelection();
+            Toasts.Show($"{count} item{(count == 1 ? "" : "s")} removed.", ToastKind.Info);
         }
         catch (InvalidOperationException exception)
         {
@@ -175,13 +225,13 @@
         }
         catch (Exception exception)
         {
-            Logger.LogError(exception, "Unable to delete item {ProductId}.", product.Id);
+            Logger.LogError(exception, "Unable to delete selected items.");
             errorMessage = "The item could not be deleted. Check the database connection and try again.";
         }
         finally
         {
             confirmDeleteVisible = false;
-            productToDelete = null;
+            productsToDelete = [];
             Busy.SetBusy(false);
         }
     }
@@ -230,7 +280,7 @@
 }
 
 <ConfirmDialog Visible="@confirmDeleteVisible"
-               Title="Delete item?"
-               Message="@($"Delete {productToDelete?.Name ?? "this item"}? This action cannot be undone.")"
+               Title="@($"Delete {productsToDelete.Count} item{(productsToDelete.Count == 1 ? "" : "s")}?")"
+               Message="This action cannot be undone."
                OnConfirm="ConfirmDeleteAsync"
                OnCancel="CancelDeleteAsync" />

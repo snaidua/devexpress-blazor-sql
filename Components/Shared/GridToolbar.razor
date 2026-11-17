@@ -1,12 +1,21 @@
-<div class="grid-toolbar" role="toolbar" aria-label="Grid actions">
-    <button type="button" class="grid-toolbar-button" @onclick="OnAdd">＋ Add</button>
-    <button type="button" class="grid-toolbar-button" @onclick="OnInsert">↥ Insert</button>
+<div class="grid-toolbar @(IconOnly ? "grid-toolbar-icons" : "") @(InHeader ? "grid-toolbar-in-header" : "")" role="toolbar" aria-label="Grid actions">
+    <button type="button" class="grid-toolbar-button" aria-label="Add row" title="Add row" @onclick="OnAdd">
+        <span aria-hidden="true">＋</span>@if (!IconOnly) { <span>Add</span> }
+    </button>
+    <button type="button" class="grid-toolbar-button" aria-label="Insert row" title="Insert row" @onclick="OnInsert">
+        <span aria-hidden="true">↥</span>@if (!IconOnly) { <span>Insert</span> }
+    </button>
     <button type="button"
             class="grid-toolbar-button grid-toolbar-delete"
-            title="@(CanDelete ? null : DeleteDisabledReason ?? "Select a row to delete.")"
+            aria-label="Delete selected rows"
+            title="@(CanDelete ? "Delete selected rows" : DeleteDisabledReason ?? "Select a row to delete.")"
             disabled="@(!CanDelete)"
-            @onclick="OnDelete">− Delete</button>
-    <button type="button" class="grid-toolbar-button" @onclick="OnReset">↺ Reset</button>
+            @onclick="OnDelete">
+        <span aria-hidden="true">−</span>@if (!IconOnly) { <span>Delete</span> }
+    </button>
+    <button type="button" class="grid-toolbar-button" aria-label="Reset grid" title="Reset grid" @onclick="OnReset">
+        <span aria-hidden="true">↺</span>@if (!IconOnly) { <span>Reset</span> }
+    </button>
 </div>
 
 @code {
@@ -16,4 +25,6 @@
     [Parameter] public EventCallback OnReset { get; set; }
     [Parameter] public bool CanDelete { get; set; }
     [Parameter] public string? DeleteDisabledReason { get; set; }
+    [Parameter] public bool IconOnly { get; set; }
+    [Parameter] public bool InHeader { get; set; }
 }
