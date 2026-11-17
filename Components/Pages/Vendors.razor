@@ -1,0 +1,129 @@
+@page "/vendors"
+@inject InventoryService Inventory
+@inject BusyIndicatorService Busy
+@inject ToastService Toasts
+@inject ILogger<Vendors> Logger
+
+<PageTitle>Vendor master | Stockroom</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">MASTER DATA</p>
+        <h1>Vendor master<span class="heading-period">.</span></h1>
+        <p class="page-subtitle">Keep supplier details up to date for incoming receipts.</p>
+    </div>
+    <button type="button" class="button button-primary" @onclick="AddVendorAsync">+ Add vendor</button>
+</div>
+
+<AlertBanner Type="danger" Message="@errorMessage" OnDismiss="DismissError" />
+
+<section class="inventory-panel master-panel">
+    <div class="panel-heading">
+        <div>
+            <div class="panel-title-row"><h2>Vendors</h2><span class="count-badge">@vendors.Count</span></div>
+            <p class="panel-subtitle">Click a cell to edit. Changes save when you leave the cell.</p>
+        </div>
+        <span class="edit-hint">✎ &nbsp; CELL EDITING</span>
+    </div>
+    <div class="grid-container">
+        <DxGrid @ref="grid"
+                Data="@vendors"
+                KeyFieldName="@nameof(Vendor.Id)"
+                EditMode="GridEditMode.EditCell"
+                EditNewRowPosition="GridEditNewRowPosition.Bottom"
+                CustomizeEditModel="CustomizeEditModel"
+                EditModelSaving="SaveEditAsync"
+                PageSize="12"
+                CssClass="inventory-grid">
+            <Columns>
+                <DxGridDataColumn FieldName="@nameof(Vendor.Code)" Caption="Vendor code" Width="140px" />
+                <DxGridDataColumn FieldName="@nameof(Vendor.Name)" Caption="Vendor" MinWidth="180" />
+                <DxGridDataColumn FieldName="@nameof(Vendor.ContactName)" Caption="Contact" Width="155px" />
+                <DxGridDataColumn FieldName="@nameof(Vendor.Phone)" Caption="Phone" Width="150px" />
+                <DxGridDataColumn FieldName="@nameof(Vendor.Email)" Caption="Email" MinWidth="210" />
+                <DxGridDataColumn FieldName="@nameof(Vendor.Address)" Caption="Address" MinWidth="180" />
+                <DxGridDataColumn FieldName="@nameof(Vendor.IsActive)" Caption="Active" Width="90px" />
+            </Columns>
+        </DxGrid>
+        @if (vendors.Count == 0 && errorMessage is null)
+        {
+            <div class="empty-state"><strong>No vendors yet</strong><span>Add a vendor to use it on receipts.</span></div>
+        }
+    </div>
+</section>
+
+@code {
+    private DxGrid? grid;
+    private List<Vendor> vendors = [];
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        Busy.SetBusy(true);
+        try
+        {
+            await Inventory.InitializeAsync();
+            vendors = (await Inventory.GetVendorsAsync()).ToList();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Unable to load the vendor master.");
+            errorMessage = "Could not load vendors from SQL Server LocalDB.";
+        }
+        finally
+        {
+            Busy.SetBusy(false);
+        }
+    }
+
+    private async Task AddVendorAsync()
+    {
+        errorMessage = null;
+        if (grid is not null)
+            await grid.StartEditNewRowAsync(nameof(Vendor.Name));
+    }
+
+    private void CustomizeEditModel(GridCustomizeEditModelEventArgs args)
+    {
+        if (args.IsNew)
+        {
+            var vendor = (Vendor)args.EditModel;
+            vendor.Code = $"VEN-{Guid.NewGuid():N}"[..10].ToUpperInvariant();
+            vendor.Name = "New vendor";
+            vendor.IsActive = true;
+        }
+    }
+
+    private async Task SaveEditAsync(GridEditModelSavingEventArgs args)
+    {
+        var vendor = (Vendor)args.EditModel;
+        Busy.SetBusy(true);
+        errorMessage = null;
+        try
+        {
+            await Inventory.SaveVendorAsync(vendor);
+            vendors = (await Inventory.GetVendorsAsync()).ToList();
+            args.Reload = true;
+            Toasts.Show(args.IsNew ? "Vendor added." : "Vendor updated.");
+        }
+        catch (InvalidOperationException exception)
+        {
+            args.Cancel = true;
+            errorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            args.Cancel = true;
+            Logger.LogError(exception, "Unable to save vendor {VendorCode}.", vendor.Code);
+            errorMessage = "The vendor could not be saved. Check the vendor code and database connection.";
+        }
+        finally
+        {
+            Busy.SetBusy(false);
+        }
+    }
+
+    private void DismissError() => errorMessage = null;
+}

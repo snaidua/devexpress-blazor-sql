@@ -13,6 +13,8 @@ builder.Services.AddDbContextFactory<InventoryDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Inventory")
         ?? throw new InvalidOperationException("The Inventory connection string is not configured.")));
 builder.Services.AddScoped<InventoryService>();
+builder.Services.AddScoped<TransactionService>();
+builder.Services.AddScoped<StockAdjustmentService>();
 builder.Services.AddScoped<BusyIndicatorService>();
 builder.Services.AddScoped<ToastService>();
 

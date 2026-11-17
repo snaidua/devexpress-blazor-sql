@@ -1,0 +1,288 @@
+@page "/receipts"
+@page "/issues"
+@inject InventoryService Inventory
+@inject TransactionService TransactionManager
+@inject BusyIndicatorService Busy
+@inject ToastService Toasts
+@inject ILogger<Transactions> Logger
+@inject NavigationManager Navigation
+
+@if (IsReceipt)
+{
+    <PageTitle>Receipts | Stockroom</PageTitle>
+}
+else
+{
+    <PageTitle>Issues | Stockroom</PageTitle>
+}
+
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">INVENTORY MOVEMENTS</p>
+        <h1>@(IsReceipt ? "Receipts" : "Issues")<span class="heading-period">.</span></h1>
+        <p class="page-subtitle">@(IsReceipt ? "Post incoming stock from a vendor." : "Record stock issued out of inventory.")</p>
+    </div>
+</div>
+
+<AlertBanner Type="danger" Message="@errorMessage" OnDismiss="DismissError" />
+
+<section class="inventory-panel transaction-entry-panel">
+    <div class="panel-heading">
+        <div>
+            <div class="panel-title-row"><h2>New @(IsReceipt ? "receipt" : "issue")</h2></div>
+            <p class="panel-subtitle">Posting is permanent and updates on-hand stock immediately.</p>
+        </div>
+    </div>
+    <EditForm Model="entry" OnValidSubmit="PostAsync">
+        <DataAnnotationsValidator />
+        <div class="transaction-form">
+            <label class="form-field">
+                <span>Item</span>
+                <InputSelect @bind-Value="entry.ProductId" @bind-Value:after="OnProductChanged">
+                    <option value="0">Select an item</option>
+                    @foreach (var item in items)
+                    {
+                        <option value="@item.Id">@item.Sku — @item.Name (@item.Quantity in stock)</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="@(() => entry.ProductId)" />
+            </label>
+            @if (IsReceipt)
+            {
+                <label class="form-field">
+                    <span>Vendor</span>
+                    <InputSelect @bind-Value="entry.VendorId">
+                        <option value="0">Select a vendor</option>
+                        @foreach (var vendor in vendors.Where(vendor => vendor.IsActive))
+                        {
+                            <option value="@vendor.Id">@vendor.Code — @vendor.Name</option>
+                        }
+                    </InputSelect>
+                </label>
+            }
+            <label class="form-field">
+                <span>Quantity</span>
+                <InputNumber @bind-Value="entry.Quantity" min="1" />
+                <ValidationMessage For="@(() => entry.Quantity)" />
+            </label>
+            <label class="form-field">
+                <span>@(IsReceipt ? "Unit cost" : "Cost snapshot")</span>
+                <InputNumber @bind-Value="entry.UnitCost" min="0" step="0.01" disabled="@(!IsReceipt)" />
+                <ValidationMessage For="@(() => entry.UnitCost)" />
+            </label>
+            <label class="form-field">
+                <span>Transaction date</span>
+                <InputDate @bind-Value="entry.TransactionDate" />
+            </label>
+            <label class="form-field transaction-notes-field">
+                <span>Reference / notes</span>
+                <InputText @bind-Value="entry.Notes" maxlength="250" placeholder="Optional reference or note" />
+            </label>
+            <div class="transaction-submit">
+                <button type="submit" class="button button-primary">Post @(IsReceipt ? "receipt" : "issue")</button>
+            </div>
+        </div>
+    </EditForm>
+</section>
+
+<section class="inventory-panel transaction-history-panel">
+    <div class="panel-heading">
+        <div>
+            <div class="panel-title-row"><h2>Posted @(IsReceipt ? "receipts" : "issues")</h2><span class="count-badge">@history.Count</span></div>
+            <p class="panel-subtitle">Click a note cell to correct its reference. Posted quantities and items are locked.</p>
+        </div>
+        <span class="edit-hint">✎ &nbsp; NOTE CELL EDITING</span>
+    </div>
+    <div class="grid-container">
+        <DxGrid Data="@history"
+                KeyFieldName="@nameof(InventoryTransaction.Id)"
+                EditMode="GridEditMode.EditCell"
+                EditModelSaving="SaveNoteAsync"
+                PageSize="10"
+                CssClass="inventory-grid">
+            <Columns>
+                <DxGridDataColumn FieldName="@nameof(InventoryTransaction.DocumentNumber)" Caption="Document" Width="190px" ReadOnly="true" />
+                <DxGridDataColumn FieldName="@nameof(InventoryTransaction.TransactionDate)" Caption="Date" DisplayFormat="g" Width="165px" ReadOnly="true" />
+                <DxGridDataColumn FieldName="@nameof(InventoryTransaction.ProductId)" Caption="Item" MinWidth="200" ReadOnly="true">
+                    <CellDisplayTemplate Context="cell">
+                        @{
+                            var transaction = (InventoryTransaction)cell.DataItem;
+                        }
+                        <span>@transaction.Product.Sku · @transaction.Product.Name</span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                @if (IsReceipt)
+                {
+                    <DxGridDataColumn FieldName="@nameof(InventoryTransaction.VendorId)" Caption="Vendor" MinWidth="180" ReadOnly="true">
+                        <CellDisplayTemplate Context="cell">
+                            @{
+                                var transaction = (InventoryTransaction)cell.DataItem;
+                            }
+                            <span>@transaction.Vendor?.Name</span>
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                }
+                <DxGridDataColumn FieldName="@nameof(InventoryTransaction.Quantity)" Caption="Quantity" Width="110px" ReadOnly="true" />
+                <DxGridDataColumn FieldName="@nameof(InventoryTransaction.UnitCost)" Caption="Unit cost" DisplayFormat="C2" Width="130px" ReadOnly="true" />
+                <DxGridDataColumn FieldName="@nameof(InventoryTransaction.Notes)" Caption="Reference / notes" MinWidth="210" />
+            </Columns>
+        </DxGrid>
+        @if (history.Count == 0 && errorMessage is null)
+        {
+            <div class="empty-state"><strong>No posted @(IsReceipt ? "receipts" : "issues")</strong><span>Post a transaction to see it here.</span></div>
+        }
+    </div>
+</section>
+
+@code {
+    private readonly TransactionEntry entry = new();
+    private List<Product> items = [];
+    private List<Vendor> vendors = [];
+    private List<InventoryTransaction> history = [];
+    private string? errorMessage;
+    private bool IsReceipt => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("receipts", StringComparison.OrdinalIgnoreCase);
+    private string TransactionType => IsReceipt ? InventoryTransactionTypes.Receipt : InventoryTransactionTypes.Issue;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (items.Count > 0)
+            await LoadHistoryAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        Busy.SetBusy(true);
+        try
+        {
+            await Inventory.InitializeAsync();
+            items = (await Inventory.GetProductsAsync()).ToList();
+            vendors = (await Inventory.GetVendorsAsync()).ToList();
+            entry.TransactionDate = DateTime.Now;
+            if (items.Count > 0)
+                entry.ProductId = items[0].Id;
+            await LoadHistoryAsync();
+            OnProductChanged();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Unable to load {TransactionType} data.", TransactionType);
+            errorMessage = "Could not load transaction data from SQL Server LocalDB.";
+        }
+        finally
+        {
+            Busy.SetBusy(false);
+        }
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        history = (await TransactionManager.GetTransactionsAsync(TransactionType)).ToList();
+    }
+
+    private void OnProductChanged()
+    {
+        if (items.FirstOrDefault(item => item.Id == entry.ProductId) is { } item)
+            entry.UnitCost = item.UnitPrice;
+    }
+
+    private async Task PostAsync()
+    {
+        errorMessage = null;
+        if (entry.ProductId <= 0)
+        {
+            errorMessage = "Select an item before posting.";
+            return;
+        }
+        if (IsReceipt && entry.VendorId <= 0)
+        {
+            errorMessage = "Select a vendor before posting a receipt.";
+            return;
+        }
+
+        Busy.SetBusy(true);
+        try
+        {
+            await TransactionManager.PostAsync(
+                TransactionType,
+                entry.ProductId,
+                IsReceipt ? entry.VendorId : null,
+                entry.Quantity,
+                entry.UnitCost,
+                entry.TransactionDate,
+                entry.Notes);
+
+            items = (await Inventory.GetProductsAsync()).ToList();
+            await LoadHistoryAsync();
+            entry.Quantity = 1;
+            entry.Notes = string.Empty;
+            entry.TransactionDate = DateTime.Now;
+            OnProductChanged();
+            Toasts.Show($"{(IsReceipt ? "Receipt" : "Issue")} posted and stock updated.");
+        }
+        catch (InvalidOperationException exception)
+        {
+            errorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Unable to post {TransactionType} for item {ProductId}.", TransactionType, entry.ProductId);
+            errorMessage = "The transaction could not be posted. Check the database connection and try again.";
+        }
+        finally
+        {
+            Busy.SetBusy(false);
+        }
+    }
+
+    private async Task SaveNoteAsync(GridEditModelSavingEventArgs args)
+    {
+        var transaction = (InventoryTransaction)args.EditModel;
+        Busy.SetBusy(true);
+        errorMessage = null;
+        try
+        {
+            await TransactionManager.UpdateNotesAsync(transaction.Id, transaction.Notes);
+            await LoadHistoryAsync();
+            args.Reload = true;
+            Toasts.Show("Transaction note updated.");
+        }
+        catch (InvalidOperationException exception)
+        {
+            args.Cancel = true;
+            errorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            args.Cancel = true;
+            Logger.LogError(exception, "Unable to update transaction {TransactionId} notes.", transaction.Id);
+            errorMessage = "The note could not be saved. Check the database connection and try again.";
+        }
+        finally
+        {
+            Busy.SetBusy(false);
+        }
+    }
+
+    private void DismissError() => errorMessage = null;
+
+    private sealed class TransactionEntry
+    {
+        [Range(1, int.MaxValue)]
+        public int ProductId { get; set; }
+
+        public int VendorId { get; set; }
+
+        [Range(1, int.MaxValue)]
+        public int Quantity { get; set; } = 1;
+
+        [Range(typeof(decimal), "0", "999999")]
+        public decimal UnitCost { get; set; }
+
+        public DateTime TransactionDate { get; set; } = DateTime.Now;
+
+        [StringLength(250)]
+        public string Notes { get; set; } = string.Empty;
+    }
+}

@@ -30,11 +30,6 @@
                         <ValidationMessage For="@(() => draft.Category)" />
                     </label>
                     <label class="form-field">
-                        <span>Quantity in stock</span>
-                        <InputNumber @bind-Value="draft.Quantity" min="0" />
-                        <ValidationMessage For="@(() => draft.Quantity)" />
-                    </label>
-                    <label class="form-field">
                         <span>Unit price</span>
                         <InputNumber @bind-Value="draft.UnitPrice" min="0" step="0.01" />
                         <ValidationMessage For="@(() => draft.UnitPrice)" />

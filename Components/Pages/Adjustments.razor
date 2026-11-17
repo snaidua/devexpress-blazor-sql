@@ -1,0 +1,341 @@
+@page "/adjustments"
+@inject InventoryService Inventory
+@inject StockAdjustmentService AdjustmentManager
+@inject BusyIndicatorService Busy
+@inject ToastService Toasts
+@inject ILogger<Adjustments> Logger
+
+<PageTitle>Stock adjustments | Stockroom</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">INVENTORY CONTROL</p>
+        <h1>Stock adjustments<span class="heading-period">.</span></h1>
+        <p class="page-subtitle">Reconcile counted quantities and review posted adjustment documents.</p>
+    </div>
+</div>
+
+<AlertBanner Type="danger" Message="@errorMessage" OnDismiss="DismissError" />
+
+<section class="inventory-panel adjustment-entry-panel">
+    <div class="panel-heading">
+        <div>
+            <div class="panel-title-row"><h2>New adjustment</h2></div>
+            <p class="panel-subtitle">Enter the physically counted quantity for each item. Stock changes when the document is posted.</p>
+        </div>
+    </div>
+    <EditForm Model="@draft" OnValidSubmit="PostAsync">
+        <DataAnnotationsValidator />
+        <div class="adjustment-header-fields">
+            <label class="form-field">
+                <span>Adjustment date</span>
+                <InputDate @bind-Value="draft.AdjustmentDate" />
+                <ValidationMessage For="@(() => draft.AdjustmentDate)" />
+            </label>
+            <label class="form-field">
+                <span>Reason</span>
+                <InputSelect @bind-Value="draft.Reason">
+                    @foreach (var reason in StockAdjustmentReasons.All)
+                    {
+                        <option value="@reason">@reason</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="@(() => draft.Reason)" />
+            </label>
+            <label class="form-field adjustment-reference-field">
+                <span>Reference / notes</span>
+                <InputText @bind-Value="draft.Reference" maxlength="250" placeholder="Optional reference or note" />
+                <ValidationMessage For="@(() => draft.Reference)" />
+            </label>
+        </div>
+
+        <div class="adjustment-detail-heading">
+            <div>
+                <h3>Adjustment details</h3>
+                <p>Variance is calculated as counted quantity minus current on-hand stock.</p>
+            </div>
+            <button type="button" class="button button-quiet" @onclick="AddLine" disabled="@(!CanAddLine)">+ Add item</button>
+        </div>
+
+        @if (draftLines.Count == 0)
+        {
+            <div class="adjustment-lines-empty">Add an item to start this adjustment.</div>
+        }
+        else
+        {
+            <div class="adjustment-lines-scroll">
+                <table class="adjustment-lines-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th class="numeric-cell">On hand</th>
+                            <th class="numeric-cell">Counted quantity</th>
+                            <th class="numeric-cell">Variance</th>
+                            <th><span class="sr-only">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var line in draftLines)
+                        {
+                            var onHand = GetCurrentQuantity(line.ProductId);
+                            var variance = line.CountedQuantity - onHand;
+                            <tr @key="line">
+                                <td>
+                                    <InputSelect @bind-Value="line.ProductId" @bind-Value:after="() => ResetLineCount(line)" class="adjustment-line-select">
+                                        <option value="0">Select an item</option>
+                                        @foreach (var item in items)
+                                        {
+                                            <option value="@item.Id" disabled="@IsUsedByAnotherLine(item.Id, line)">@item.Sku — @item.Name</option>
+                                        }
+                                    </InputSelect>
+                                </td>
+                                <td class="numeric-cell">
+                                    <span class="stock-value @(onHand <= GetReorderLevel(line.ProductId) ? "stock-low" : "stock-good")">@onHand</span>
+                                </td>
+                                <td class="numeric-cell">
+                                    <InputNumber @bind-Value="line.CountedQuantity" min="0" class="adjustment-quantity-input" />
+                                </td>
+                                <td class="numeric-cell">
+                                    <span class="adjustment-variance @(VarianceClass(variance))">@(variance > 0 ? "+" : "")@variance</span>
+                                </td>
+                                <td class="adjustment-remove-cell">
+                                    <button type="button" class="row-action row-action-delete" @onclick="() => RemoveLine(line)">Remove</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <ValidationSummary />
+        <div class="adjustment-submit-row">
+            <span>@draftLines.Count item@(draftLines.Count == 1 ? "" : "s") in this document</span>
+            <button type="submit" class="button button-primary" disabled="@(draftLines.Count == 0)">Post adjustment</button>
+        </div>
+    </EditForm>
+</section>
+
+<section class="inventory-panel adjustment-browser-panel">
+    <div class="panel-heading">
+        <div>
+            <div class="panel-title-row"><h2>Posted adjustments</h2><span class="count-badge">@adjustments.Count</span></div>
+            <p class="panel-subtitle">Select a master document to review its item details.</p>
+        </div>
+    </div>
+    <div class="adjustment-browser">
+        <div class="adjustment-master-list" aria-label="Adjustment documents">
+            @if (adjustments.Count == 0)
+            {
+                <div class="adjustment-browser-empty">No adjustment documents posted yet.</div>
+            }
+            else
+            {
+                @foreach (var adjustment in adjustments)
+                {
+                    <button type="button"
+                            class="adjustment-master-row @(selectedAdjustment?.Id == adjustment.Id ? "is-selected" : "")"
+                            aria-pressed="@(selectedAdjustment?.Id == adjustment.Id)"
+                            @onclick="() => SelectAdjustment(adjustment.Id)">
+                        <span class="adjustment-master-main">
+                            <strong>@adjustment.DocumentNumber</strong>
+                            <small>@adjustment.Reason</small>
+                        </span>
+                        <span class="adjustment-master-meta">
+                            <strong>@adjustment.Lines.Count item@(adjustment.Lines.Count == 1 ? "" : "s")</strong>
+                            <small>@adjustment.AdjustmentDate.ToLocalTime().ToString("d")</small>
+                        </span>
+                    </button>
+                }
+            }
+        </div>
+        <div class="adjustment-detail-view">
+            @if (selectedAdjustment is { } selected)
+            {
+                <div class="adjustment-document-heading">
+                    <div>
+                        <p class="eyebrow">ADJUSTMENT DOCUMENT</p>
+                        <h3>@selected.DocumentNumber</h3>
+                        <p>@selected.Reason · @selected.AdjustmentDate.ToLocalTime().ToString("g")</p>
+                    </div>
+                    <span class="count-badge">@selected.Lines.Count lines</span>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(selected.Reference))
+                {
+                    <p class="adjustment-reference-summary">@selected.Reference</p>
+                }
+                <div class="adjustment-lines-scroll adjustment-posted-lines">
+                    <table class="adjustment-lines-table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th class="numeric-cell">System</th>
+                                <th class="numeric-cell">Counted</th>
+                                <th class="numeric-cell">Variance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var line in selected.Lines.OrderBy(line => line.Product.Name))
+                            {
+                                <tr @key="line.Id">
+                                    <td>
+                                        <span class="adjustment-product-name">@line.Product.Name</span>
+                                        <small class="adjustment-product-sku">@line.Product.Sku</small>
+                                    </td>
+                                    <td class="numeric-cell">@line.SystemQuantity</td>
+                                    <td class="numeric-cell">@line.CountedQuantity</td>
+                                    <td class="numeric-cell">
+                                        <span class="adjustment-variance @(VarianceClass(line.Variance))">@(line.Variance > 0 ? "+" : "")@line.Variance</span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else if (adjustments.Count > 0)
+            {
+                <div class="adjustment-browser-empty">Select an adjustment to see its details.</div>
+            }
+            else
+            {
+                <div class="adjustment-browser-empty">Adjustment details will appear here after posting.</div>
+            }
+        </div>
+    </div>
+</section>
+
+@code {
+    private readonly AdjustmentDraft draft = new();
+    private readonly List<AdjustmentDraftLine> draftLines = [];
+    private List<Product> items = [];
+    private List<StockAdjustment> adjustments = [];
+    private StockAdjustment? selectedAdjustment;
+    private string? errorMessage;
+
+    private bool CanAddLine => items.Any(item => draftLines.All(line => line.ProductId != item.Id));
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        Busy.SetBusy(true);
+        try
+        {
+            await Inventory.InitializeAsync();
+            items = (await Inventory.GetProductsAsync()).ToList();
+            adjustments = (await AdjustmentManager.GetAdjustmentsAsync()).ToList();
+            selectedAdjustment = adjustments.FirstOrDefault();
+            draft.AdjustmentDate = DateTime.Now;
+            if (items.Count > 0)
+                AddLine();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Unable to load stock adjustment data.");
+            errorMessage = "Could not load stock adjustment data from SQL Server LocalDB.";
+        }
+        finally
+        {
+            Busy.SetBusy(false);
+        }
+    }
+
+    private void AddLine()
+    {
+        var item = items.FirstOrDefault(candidate => draftLines.All(line => line.ProductId != candidate.Id));
+        if (item is not null)
+            draftLines.Add(new AdjustmentDraftLine { ProductId = item.Id, CountedQuantity = item.Quantity });
+        errorMessage = null;
+    }
+
+    private void RemoveLine(AdjustmentDraftLine line)
+    {
+        draftLines.Remove(line);
+        errorMessage = null;
+    }
+
+    private void ResetLineCount(AdjustmentDraftLine line)
+    {
+        line.CountedQuantity = GetCurrentQuantity(line.ProductId);
+        errorMessage = null;
+    }
+
+    private int GetCurrentQuantity(int productId) =>
+        items.FirstOrDefault(item => item.Id == productId)?.Quantity ?? 0;
+
+    private int GetReorderLevel(int productId) =>
+        items.FirstOrDefault(item => item.Id == productId)?.ReorderLevel ?? int.MaxValue;
+
+    private bool IsUsedByAnotherLine(int productId, AdjustmentDraftLine currentLine) =>
+        draftLines.Any(line => !ReferenceEquals(line, currentLine) && line.ProductId == productId);
+
+    private static string VarianceClass(int variance) =>
+        variance > 0 ? "variance-positive" : variance < 0 ? "variance-negative" : "variance-zero";
+
+    private void SelectAdjustment(int adjustmentId) =>
+        selectedAdjustment = adjustments.FirstOrDefault(adjustment => adjustment.Id == adjustmentId);
+
+    private async Task PostAsync()
+    {
+        errorMessage = null;
+        if (draftLines.Count == 0)
+        {
+            errorMessage = "Add at least one item to the adjustment.";
+            return;
+        }
+
+        Busy.SetBusy(true);
+        try
+        {
+            var posted = await AdjustmentManager.PostAsync(
+                draft.AdjustmentDate,
+                draft.Reason,
+                draft.Reference,
+                draftLines.Select(line => new StockAdjustmentLineInput(line.ProductId, line.CountedQuantity)).ToArray());
+
+            items = (await Inventory.GetProductsAsync()).ToList();
+            adjustments = (await AdjustmentManager.GetAdjustmentsAsync()).ToList();
+            selectedAdjustment = adjustments.FirstOrDefault(adjustment => adjustment.Id == posted.Id);
+            draft.AdjustmentDate = DateTime.Now;
+            draft.Reason = StockAdjustmentReasons.PhysicalCount;
+            draft.Reference = string.Empty;
+            draftLines.Clear();
+            AddLine();
+            Toasts.Show($"Adjustment {posted.DocumentNumber} posted.");
+        }
+        catch (InvalidOperationException exception)
+        {
+            errorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Unable to post stock adjustment.");
+            errorMessage = "The adjustment could not be posted. Check the database connection and try again.";
+        }
+        finally
+        {
+            Busy.SetBusy(false);
+        }
+    }
+
+    private void DismissError() => errorMessage = null;
+
+    private sealed class AdjustmentDraft
+    {
+        [Required]
+        public DateTime AdjustmentDate { get; set; } = DateTime.Now;
+
+        [Required, StringLength(30)]
+        public string Reason { get; set; } = StockAdjustmentReasons.PhysicalCount;
+
+        [StringLength(250)]
+        public string Reference { get; set; } = string.Empty;
+    }
+
+    private sealed class AdjustmentDraftLine
+    {
+        public int ProductId { get; set; }
+        public int CountedQuantity { get; set; }
+    }
+}

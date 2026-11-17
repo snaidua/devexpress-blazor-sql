@@ -1,0 +1,135 @@
+@page "/items"
+@inject InventoryService Inventory
+@inject BusyIndicatorService Busy
+@inject ToastService Toasts
+@inject ILogger<Items> Logger
+
+<PageTitle>Item master | Stockroom</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">MASTER DATA</p>
+        <h1>Item master<span class="heading-period">.</span></h1>
+        <p class="page-subtitle">Maintain item details. On-hand stock is updated by posted transactions.</p>
+    </div>
+    <button type="button" class="button button-primary" @onclick="AddItemAsync">+ Add item</button>
+</div>
+
+<AlertBanner Type="danger" Message="@errorMessage" OnDismiss="DismissError" />
+
+<section class="inventory-panel master-panel">
+    <div class="panel-heading">
+        <div>
+            <div class="panel-title-row"><h2>Items</h2><span class="count-badge">@items.Count</span></div>
+            <p class="panel-subtitle">Click a cell to edit. Changes save when you leave the cell.</p>
+        </div>
+        <span class="edit-hint">✎ &nbsp; CELL EDITING</span>
+    </div>
+    <div class="grid-container">
+        <DxGrid @ref="grid"
+                Data="@items"
+                KeyFieldName="@nameof(Product.Id)"
+                EditMode="GridEditMode.EditCell"
+                EditNewRowPosition="GridEditNewRowPosition.Bottom"
+                CustomizeEditModel="CustomizeEditModel"
+                EditModelSaving="SaveEditAsync"
+                PageSize="12"
+                CssClass="inventory-grid">
+            <Columns>
+                <DxGridDataColumn FieldName="@nameof(Product.Sku)" Caption="SKU" Width="140px" />
+                <DxGridDataColumn FieldName="@nameof(Product.Name)" Caption="Item name" MinWidth="190" />
+                <DxGridDataColumn FieldName="@nameof(Product.Category)" Caption="Category" Width="160px" />
+                <DxGridDataColumn FieldName="@nameof(Product.Quantity)" Caption="On hand" Width="110px" ReadOnly="true">
+                    <CellDisplayTemplate Context="cell">
+                        @if (cell.DataItem is Product item)
+                        {
+                            <span class="stock-value @(item.Quantity <= item.ReorderLevel ? "stock-low" : "stock-good")">@item.Quantity</span>
+                        }
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="@nameof(Product.UnitPrice)" Caption="Unit cost" DisplayFormat="C2" Width="130px" />
+                <DxGridDataColumn FieldName="@nameof(Product.ReorderLevel)" Caption="Reorder level" Width="135px" />
+            </Columns>
+        </DxGrid>
+        @if (items.Count == 0 && errorMessage is null)
+        {
+            <div class="empty-state"><strong>No items yet</strong><span>Add an item to start managing inventory.</span></div>
+        }
+    </div>
+</section>
+
+@code {
+    private DxGrid? grid;
+    private List<Product> items = [];
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        Busy.SetBusy(true);
+        try
+        {
+            await Inventory.InitializeAsync();
+            items = (await Inventory.GetProductsAsync()).ToList();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Unable to load the item master.");
+            errorMessage = "Could not load items from SQL Server LocalDB.";
+        }
+        finally
+        {
+            Busy.SetBusy(false);
+        }
+    }
+
+    private async Task AddItemAsync()
+    {
+        errorMessage = null;
+        if (grid is not null)
+            await grid.StartEditNewRowAsync(nameof(Product.Name));
+    }
+
+    private void CustomizeEditModel(GridCustomizeEditModelEventArgs args)
+    {
+        if (args.IsNew)
+        {
+            var item = (Product)args.EditModel;
+            item.Sku = $"ITEM-{Guid.NewGuid():N}"[..13].ToUpperInvariant();
+            item.Name = "New item";
+            item.Category = "General";
+        }
+    }
+
+    private async Task SaveEditAsync(GridEditModelSavingEventArgs args)
+    {
+        var item = (Product)args.EditModel;
+        Busy.SetBusy(true);
+        errorMessage = null;
+        try
+        {
+            await Inventory.SaveProductAsync(item);
+            items = (await Inventory.GetProductsAsync()).ToList();
+            args.Reload = true;
+            Toasts.Show(args.IsNew ? "Item added." : "Item updated.");
+        }
+        catch (InvalidOperationException exception)
+        {
+            args.Cancel = true;
+            errorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            args.Cancel = true;
+            Logger.LogError(exception, "Unable to save item {Sku}.", item.Sku);
+            errorMessage = "The item could not be saved. Check the SKU and database connection.";
+        }
+        finally
+        {
+            Busy.SetBusy(false);
+        }
+    }
+
+    private void DismissError() => errorMessage = null;
+}

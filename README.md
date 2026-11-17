@@ -30,8 +30,11 @@ DevExpress packages are restored from NuGet. Configure your DevExpress license o
 ## Included
 
 - Inventory dashboard with search, category filtering, stock indicators, and summary metrics
+- Item and vendor master pages with DevExpress EditCell grids
+- Receipt and issue posting with stock validation, audit history, and EditCell-editable reference notes (posted quantities and items stay locked)
+- Stock adjustment documents with counted quantities, calculated variance, and a master-detail history view
 - Product create, edit, and delete flows with validation
 - SQL Server LocalDB persistence through EF Core
 - Responsive sidebar and topbar, global progress indicator, alerts, toast notifications, and reusable dialogs
 
-The sample uses `EnsureCreated` to initialize a new local database. Use EF Core migrations when evolving a database schema beyond this starter.
+The app uses `EnsureCreated` for a new local database and idempotently adds vendor, transaction, and stock adjustment tables to an existing Stockroom database. Use EF Core migrations for future schema changes.

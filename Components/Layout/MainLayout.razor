@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@inject NavigationManager Navigation
 
 <div class="workspace-shell @(sidebarOpen ? "sidebar-expanded" : "sidebar-collapsed")">
     <aside class="sidebar">
@@ -12,12 +13,22 @@
             <NavLink href="/" Match="NavLinkMatch.All" class="side-link">
                 <span class="nav-icon">⌂</span><span class="nav-label">Overview</span>
             </NavLink>
-            <a href="/#inventory" class="side-link">
-                <span class="nav-icon">▤</span><span class="nav-label">Inventory</span>
-            </a>
-            <a href="/#categories" class="side-link">
-                <span class="nav-icon">◫</span><span class="nav-label">Categories</span>
-            </a>
+            <NavLink href="/items" class="side-link">
+                <span class="nav-icon">▤</span><span class="nav-label">Item master</span>
+            </NavLink>
+            <NavLink href="/vendors" class="side-link">
+                <span class="nav-icon">♧</span><span class="nav-label">Vendor master</span>
+            </NavLink>
+            <div class="sidebar-section-label nav-section-label">TRANSACTIONS</div>
+            <NavLink href="/receipts" class="side-link">
+                <span class="nav-icon">↓</span><span class="nav-label">Receipts</span>
+            </NavLink>
+            <NavLink href="/issues" class="side-link">
+                <span class="nav-icon">↑</span><span class="nav-label">Issues</span>
+            </NavLink>
+            <NavLink href="/adjustments" class="side-link">
+                <span class="nav-icon">±</span><span class="nav-label">Stock adjustments</span>
+            </NavLink>
         </nav>
 
         <div class="sidebar-bottom">
@@ -40,7 +51,7 @@
             <button type="button" class="icon-button menu-toggle" aria-label="Toggle navigation" aria-expanded="@sidebarOpen" @onclick="ToggleSidebar">
                 <span>☰</span>
             </button>
-            <div class="topbar-context"><span>Workspace</span><span class="crumb-divider">/</span><strong>Overview</strong></div>
+            <div class="topbar-context"><span>Workspace</span><span class="crumb-divider">/</span><strong>@CurrentSection</strong></div>
             <div class="topbar-right">
                 <span class="connection-status"><span class="status-dot"></span> Local database</span>
                 <span class="user-avatar" aria-label="User">A</span>
@@ -58,6 +69,15 @@
 
 @code {
     private bool sidebarOpen = true;
+    private string CurrentSection => new Uri(Navigation.Uri).AbsolutePath.Trim('/') switch
+    {
+        "items" => "Item master",
+        "vendors" => "Vendor master",
+        "receipts" => "Receipts",
+        "issues" => "Issues",
+        "adjustments" => "Stock adjustments",
+        _ => "Overview"
+    };
 
     private void ToggleSidebar() => sidebarOpen = !sidebarOpen;
 }
