@@ -1,0 +1,34 @@
+@page "/multiline-input"
+
+<PageTitle>Multiline input | Stockroom</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">SHARED COMPONENT</p>
+        <h1>Multiline input<span class="heading-period">.</span></h1>
+        <p class="page-subtitle">A reusable, cell-editable grid for multiline text with CSV import and export.</p>
+    </div>
+</div>
+
+<MultilineInputGrid Title="Multiline entries" Rows="@rows" RowsChanged="OnRowsChanged" />
+
+@code {
+    private List<MultilineInputRow> rows =
+    [
+        new() { Name = "Receiving instructions", Text = "Check quantities against the purchase order.\nRecord any damaged items before shelving." },
+        new() { Name = "Storage notes", Text = "Keep temperature-sensitive products in the north aisle.\nUse the oldest stock first." },
+        new() { Name = "Order follow-up", Text = "Confirm delivery date with the supplier.\nUpdate the receiving team if the date changes." },
+        new() { Name = "Cycle count", Text = "Count each shelf from left to right.\nNote discrepancies for review." },
+        new() { Name = "Returns", Text = "Inspect returned goods before restocking.\nSeparate items that need vendor approval." },
+        new() { Name = "Safety reminder", Text = "Keep walkways clear while unloading.\nUse the marked area for oversized cartons." },
+        new() { Name = "Packing note", Text = "Use protective padding for glass items.\nAdd the handling label to the outside of the box." },
+        new() { Name = "Stock review", Text = "Review low-stock items every Friday.\nShare urgent replenishment needs with purchasing." },
+        new() { Name = "Vendor contact", Text = "Send invoice questions to the accounts team.\nInclude the delivery reference in all messages." },
+        new() { Name = "Dispatch checklist", Text = "Verify item codes before dispatch.\nConfirm the destination and package count." },
+        new() { Name = "Quality check", Text = "Check seals and packaging on arrival.\nFlag products that do not meet the expected condition." },
+        new() { Name = "Inventory handover", Text = "Record open tasks before shift change.\nTell the next shift about any pending receipts." },
+        new() { Name = "Special handling", Text = "Store upright and keep dry.\nDo not stack above the marked limit." }
+    ];
+
+    private void OnRowsChanged(List<MultilineInputRow> updatedRows) => rows = updatedRows;
+}

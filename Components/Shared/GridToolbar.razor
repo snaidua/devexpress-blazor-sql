@@ -13,6 +13,19 @@
             @onclick="OnDelete">
         <span aria-hidden="true">−</span>@if (!IconOnly) { <span>Delete</span> }
     </button>
+    @if (OnImportFile.HasDelegate)
+    {
+        <label class="grid-toolbar-button grid-toolbar-file-button" title="Import CSV">
+            <span aria-hidden="true">⇧</span>@if (!IconOnly) { <span>Import</span> }
+            <InputFile OnChange="OnImportFile" accept=".csv,text/csv" aria-label="Import CSV" class="grid-toolbar-file-input" />
+        </label>
+    }
+    @if (OnExport.HasDelegate)
+    {
+        <button type="button" class="grid-toolbar-button" aria-label="Export CSV" title="Export CSV" @onclick="OnExport">
+            <span aria-hidden="true">⇩</span>@if (!IconOnly) { <span>Export</span> }
+        </button>
+    }
     <button type="button" class="grid-toolbar-button" aria-label="Reset grid" title="Reset grid" @onclick="OnReset">
         <span aria-hidden="true">↺</span>@if (!IconOnly) { <span>Reset</span> }
     </button>
@@ -23,6 +36,8 @@
     [Parameter] public EventCallback OnInsert { get; set; }
     [Parameter] public EventCallback OnDelete { get; set; }
     [Parameter] public EventCallback OnReset { get; set; }
+    [Parameter] public EventCallback OnExport { get; set; }
+    [Parameter] public EventCallback<InputFileChangeEventArgs> OnImportFile { get; set; }
     [Parameter] public bool CanDelete { get; set; }
     [Parameter] public string? DeleteDisabledReason { get; set; }
     [Parameter] public bool IconOnly { get; set; }

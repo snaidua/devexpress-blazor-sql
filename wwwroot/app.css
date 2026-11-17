@@ -181,6 +181,8 @@ h1, h2, .brand-name, .metric-value { font-family: 'Segoe UI', Arial, sans-serif;
 .grid-toolbar-button { min-height: 27px; padding: 0 9px; border: 1px solid #e4e9ec; border-radius: 5px; color: #566571; background: #fff; font-size: 10px; font-weight: 600; }
 .grid-toolbar-button:hover:not(:disabled) { border-color: #cbd9d5; color: #356b60; background: #f5faf7; }
 .grid-toolbar-button:disabled { color: #aeb7bd; cursor: not-allowed; }
+.grid-toolbar-file-button { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 5px; overflow: hidden; }
+.grid-toolbar-file-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .grid-toolbar-delete { color: #a85e5e; }
 .grid-toolbar-in-header { width: max-content; padding: 0; border: 0; background: transparent; }
 .grid-toolbar-icons .grid-toolbar-button { display: grid; width: 31px; min-height: 31px; place-items: center; padding: 0; font-size: 15px; }
@@ -189,6 +191,12 @@ h1, h2, .brand-name, .metric-value { font-family: 'Segoe UI', Arial, sans-serif;
 .item-grid-header .panel-title-row { justify-content: center; white-space: nowrap; }
 .item-grid-filters { display: flex; min-width: 0; align-items: center; justify-self: end; gap: 6px; }
 .item-grid-filters .select-control { width: 108px; max-width: 108px; }
+.shared-grid-header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding-inline: 12px; }
+.shared-grid-title { min-width: 0; text-align: center; }
+.shared-grid-title .panel-title-row { justify-content: center; white-space: nowrap; }
+.shared-grid-filters { display: flex; min-width: 0; align-items: center; justify-self: end; gap: 6px; }
+.shared-grid-filters .select-control { width: 108px; max-width: 108px; }
+.shared-grid-message { padding: 8px 14px; border-top: 1px solid #f1dddd; color: #994d4d; background: #fff4f3; font-size: 10px; }
 .column-filter-input { width: 125px; min-width: 0; height: 34px; padding: 0 9px; border: 1px solid #e5e9ed; border-radius: 6px; outline: 0; color: var(--ink); background: #fff; font-size: 10px; }
 .column-filter-input:focus, .item-grid-filters .select-control:focus { border-color: #8db4aa; box-shadow: 0 0 0 2px #4b8d7e1a; }
 .grid-row-number { color: #81909b; font-size: 10px; font-variant-numeric: tabular-nums; text-align: right; }
@@ -208,6 +216,13 @@ h1, h2, .brand-name, .metric-value { font-family: 'Segoe UI', Arial, sans-serif;
 .inventory-grid .dxbl-grid-data-row > td { height: 40px; color: #53606d; border-right: 1px solid #f0f2f4; border-bottom-color: #f0f2f4; }
 .inventory-grid .dxbl-grid-data-row > td:last-child { border-right: 0; }
 .inventory-grid .dxbl-grid-data-row:hover > td { background: #fbfcfd; }
+.shared-multiline-grid .dxbl-grid-header-row > th,
+.shared-multiline-grid .dxbl-grid-filter-row > td,
+.shared-multiline-grid .dxbl-grid-data-row > td { border-right: 1px solid #e3e8eb; border-bottom: 1px solid #e3e8eb; }
+.shared-multiline-grid .dxbl-grid-data-row > td { height: auto; min-height: 48px; vertical-align: top; }
+.shared-grid-multiline-value { min-height: 42px; padding: 5px 0; color: #53606d; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.shared-grid-textarea { width: 100%; min-height: 74px; padding: 7px; border: 1px solid #dfe5e9; border-radius: 4px; outline: 0; color: #303e49; background: #fff; font: inherit; line-height: 1.5; resize: vertical; }
+.shared-grid-textarea:focus { border-color: #8db4aa; box-shadow: 0 0 0 2px #4b8d7e1a; }
 .stock-value { display: inline-block; min-width: 25px; padding: 4px 7px; border-radius: 12px; font-size: 10px; font-weight: 600; text-align: center; }
 .stock-good { color: #54856b; background: #edf6f0; }
 .stock-low { color: #b77c39; background: #fbf3e9; }
@@ -360,6 +375,13 @@ h1:focus { outline: none; }
     .metric-value { margin-top: 12px; font-size: 23px; }
     .metric-note { font-size: 9px; }
     .panel-heading { align-items: flex-start; flex-direction: column; gap: 12px; padding: 14px 16px; }
+    .shared-grid-header { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; }
+    .shared-grid-header .grid-toolbar-in-header { justify-self: start; }
+    .shared-grid-header .shared-grid-title { text-align: left; }
+    .shared-grid-header .shared-grid-title .panel-title-row { justify-content: flex-start; }
+    .shared-grid-filters { width: 100%; justify-self: stretch; }
+    .shared-grid-filters .select-control { flex: 0 0 125px; width: 125px; }
+    .shared-grid-filters .column-filter-input { flex: 1; width: auto; }
     .panel-heading .edit-hint { align-self: flex-start; }
     .table-tools { width: 100%; flex-wrap: wrap; }
     .search-box { flex: 1; width: auto; }

@@ -31,6 +31,7 @@ DevExpress packages are restored from NuGet. Configure your DevExpress license o
 
 - Inventory dashboard with search, category filtering, stock indicators, and summary metrics
 - Item and vendor master pages with DevExpress EditCell grids
+- Reusable multiline input grid with row selection, per-column filtering, pagination, and CSV import/export
 - Receipt and issue posting with stock validation, audit history, and EditCell-editable reference notes (posted quantities and items stay locked)
 - Stock adjustment documents with counted quantities, calculated variance, and a master-detail history view
 - Product create, edit, and delete flows with validation

@@ -1,0 +1,296 @@
+@using System.Text
+@inject IJSRuntime JS
+
+<section class="inventory-panel master-panel shared-multiline-panel">
+    <div class="panel-heading shared-grid-header">
+        <GridToolbar OnAdd="AddRowAsync"
+                     OnInsert="InsertRowAsync"
+                     OnDelete="DeleteSelectedRows"
+                     OnReset="ResetGridAsync"
+                     OnExport="ExportCsvAsync"
+                     OnImportFile="ImportCsvAsync"
+                     CanDelete="@selectedRows.Any()"
+                     IconOnly="true"
+                     InHeader="true" />
+        <div class="shared-grid-title">
+            <div class="panel-title-row">
+                <span class="panel-icon" aria-hidden="true">▦</span>
+                <h2>@Title</h2>
+                <span class="count-badge">@FilteredRows.Count</span>
+            </div>
+        </div>
+        <div class="shared-grid-filters">
+            <select class="select-control" aria-label="Search column" @bind="selectedColumn">
+                <option value="All">All columns</option>
+                <option value="@nameof(MultilineInputRow.Name)">Name</option>
+                <option value="@nameof(MultilineInputRow.Text)">Multiline text</option>
+            </select>
+            <input class="column-filter-input"
+                   type="search"
+                   placeholder="Search rows..."
+                   aria-label="Search rows by selected column"
+                   @bind="searchText"
+                   @bind:event="oninput" />
+        </div>
+    </div>
+    @if (!string.IsNullOrEmpty(importError))
+    {
+        <div class="shared-grid-message" role="alert">@importError</div>
+    }
+    <div class="grid-container">
+        <DxGrid @ref="grid"
+                Data="@FilteredRows"
+                KeyFieldName="@nameof(MultilineInputRow.Id)"
+                SelectionMode="GridSelectionMode.Multiple"
+                @bind-SelectedDataItems="selectedRows"
+                EditMode="GridEditMode.EditCell"
+                CustomizeEditModel="CustomizeEditModel"
+                EditModelSaving="SaveEditAsync"
+                PageSize="12"
+                PageSizeSelectorVisible="true"
+                PageSizeSelectorItems="@(new int[] { 12, 25, 50 })"
+                @bind-PageIndex="pageIndex"
+                PagerVisible="true"
+                ShowFilterRow="true"
+                CssClass="inventory-grid shared-multiline-grid">
+            <Columns>
+                <DxGridSelectionColumn AllowSelectAll="false" Width="42px" />
+                <DxGridDataColumn FieldName="@nameof(MultilineInputRow.Id)" Caption="#" Width="58px" AllowSort="false" ReadOnly="true">
+                    <CellDisplayTemplate Context="cell">
+                        @{
+                            var isPendingRow = cell.DataItem is MultilineInputRow row && Rows.All(existingRow => existingRow.Id != row.Id);
+                            var rowNumber = isPendingRow ? Rows.Count + 1 : cell.VisibleIndex + 1;
+                        }
+                        <span class="grid-row-number">@rowNumber</span>
+                    </CellDisplayTemplate>
+                    <FilterRowCellTemplate></FilterRowCellTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="@nameof(MultilineInputRow.Name)" Caption="Name" MinWidth="170" />
+                <DxGridDataColumn FieldName="@nameof(MultilineInputRow.Text)" Caption="Multiline text" MinWidth="400">
+                    <CellDisplayTemplate Context="cell">
+                        @if (cell.DataItem is MultilineInputRow row)
+                        {
+                            <div class="shared-grid-multiline-value">@row.Text</div>
+                        }
+                    </CellDisplayTemplate>
+                    <CellEditTemplate Context="cell">
+                        <textarea class="shared-grid-textarea"
+                                  rows="3"
+                                  aria-label="Edit multiline text"
+                                  @bind="((MultilineInputRow)cell.EditModel).Text"></textarea>
+                    </CellEditTemplate>
+                </DxGridDataColumn>
+            </Columns>
+        </DxGrid>
+        @if (FilteredRows.Count == 0)
+        {
+            <div class="empty-state">
+                <strong>@(Rows.Count == 0 ? "No rows yet" : "No matching rows")</strong>
+                <span>@(Rows.Count == 0 ? "Add a row or import a CSV file." : "Try another search or clear the filters.")</span>
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public List<MultilineInputRow> Rows { get; set; } = [];
+    [Parameter] public EventCallback<List<MultilineInputRow>> RowsChanged { get; set; }
+    [Parameter] public string Title { get; set; } = "Multiline input";
+
+    private DxGrid? grid;
+    private IReadOnlyList<object> selectedRows = Array.Empty<object>();
+    private int pageIndex;
+    private string selectedColumn = "All";
+    private string searchText = string.Empty;
+    private string? importError;
+
+    private List<MultilineInputRow> FilteredRows => Rows
+        .Where(row => string.IsNullOrWhiteSpace(searchText) || selectedColumn switch
+        {
+            nameof(MultilineInputRow.Name) => Matches(row.Name),
+            nameof(MultilineInputRow.Text) => Matches(row.Text),
+            _ => Matches(row.Name) || Matches(row.Text)
+        })
+        .ToList();
+
+    private bool Matches(string value) => value.Contains(searchText, StringComparison.OrdinalIgnoreCase);
+
+    private async Task AddRowAsync()
+    {
+        if (grid is not null)
+            await grid.StartEditNewRowAsync(nameof(MultilineInputRow.Name));
+    }
+
+    private async Task InsertRowAsync()
+    {
+        if (grid is null)
+            return;
+
+        pageIndex = 0;
+        await grid.StartEditNewRowAsync(nameof(MultilineInputRow.Name));
+    }
+
+    private void CustomizeEditModel(GridCustomizeEditModelEventArgs args)
+    {
+        if (args.IsNew)
+        {
+            var row = (MultilineInputRow)args.EditModel;
+            row.Name = "New row";
+        }
+    }
+
+    private async Task SaveEditAsync(GridEditModelSavingEventArgs args)
+    {
+        if (args.IsNew)
+        {
+            Rows.Add((MultilineInputRow)args.EditModel);
+        }
+        else
+        {
+            args.CopyChangesToDataItem();
+        }
+
+        args.Reload = true;
+        await RowsChanged.InvokeAsync(Rows);
+    }
+
+    private async Task DeleteSelectedRows()
+    {
+        var selectedIds = selectedRows.OfType<MultilineInputRow>().Select(row => row.Id).ToHashSet();
+        if (selectedIds.Count == 0)
+            return;
+
+        Rows.RemoveAll(row => selectedIds.Contains(row.Id));
+        selectedRows = Array.Empty<object>();
+        await RowsChanged.InvokeAsync(Rows);
+    }
+
+    private Task ResetGridAsync()
+    {
+        selectedColumn = "All";
+        searchText = string.Empty;
+        selectedRows = Array.Empty<object>();
+        grid?.ClearFilter();
+        grid?.ClearSort();
+        grid?.ClearSelection();
+        pageIndex = 0;
+        return Task.CompletedTask;
+    }
+
+    private async Task ExportCsvAsync()
+    {
+        var csv = new StringBuilder();
+        AppendCsvRow(csv, ["Name", "Multiline text"]);
+        foreach (var row in Rows)
+            AppendCsvRow(csv, [row.Name, row.Text]);
+
+        await JS.InvokeVoidAsync("stockroomFiles.downloadText", "multiline-input.csv", csv.ToString());
+    }
+
+    private async Task ImportCsvAsync(InputFileChangeEventArgs args)
+    {
+        importError = null;
+        try
+        {
+            await using var stream = args.File.OpenReadStream(2 * 1024 * 1024);
+            using var reader = new StreamReader(stream);
+            var content = await reader.ReadToEndAsync();
+            var records = ParseCsv(content);
+            if (records.Count > 0 && records[0].SequenceEqual(["Name", "Multiline text"], StringComparer.OrdinalIgnoreCase))
+                records.RemoveAt(0);
+
+            records.RemoveAll(record => record.Count == 1 && string.IsNullOrWhiteSpace(record[0]));
+            if (records.Any(record => record.Count != 2))
+                throw new FormatException("Each CSV row must contain exactly two columns: Name and Multiline text.");
+
+            Rows.Clear();
+            Rows.AddRange(records
+                .Where(record => record.Any(value => !string.IsNullOrWhiteSpace(value)))
+                .Select(record => new MultilineInputRow { Name = record[0], Text = record[1] }));
+            selectedRows = Array.Empty<object>();
+            pageIndex = 0;
+            await RowsChanged.InvokeAsync(Rows);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or FormatException or InvalidOperationException)
+        {
+            importError = $"Could not import CSV: {exception.Message}";
+        }
+    }
+
+    private static void AppendCsvRow(StringBuilder csv, IEnumerable<string> values)
+    {
+        csv.AppendLine(string.Join(",", values.Select(value =>
+            $"\"{value.Replace("\"", "\"\"")}\"")));
+    }
+
+    private static List<List<string>> ParseCsv(string csv)
+    {
+        var records = new List<List<string>>();
+        var record = new List<string>();
+        var value = new StringBuilder();
+        var inQuotes = false;
+        var afterQuote = false;
+
+        for (var index = 0; index < csv.Length; index++)
+        {
+            var character = csv[index];
+            if (inQuotes)
+            {
+                if (character == '"' && index + 1 < csv.Length && csv[index + 1] == '"')
+                {
+                    value.Append('"');
+                    index++;
+                }
+                else if (character == '"')
+                {
+                    inQuotes = false;
+                    afterQuote = true;
+                }
+                else
+                {
+                    value.Append(character);
+                }
+            }
+            else if (afterQuote && char.IsWhiteSpace(character) && character != '\r' && character != '\n')
+            {
+                continue;
+            }
+            else if (character == '"' && value.Length == 0 && !afterQuote)
+            {
+                inQuotes = true;
+            }
+            else if (character == ',')
+            {
+                record.Add(value.ToString());
+                value.Clear();
+                afterQuote = false;
+            }
+            else if (character == '\r' || character == '\n')
+            {
+                if (character == '\r' && index + 1 < csv.Length && csv[index + 1] == '\n')
+                    index++;
+                record.Add(value.ToString());
+                records.Add(record);
+                record = [];
+                value.Clear();
+                afterQuote = false;
+            }
+            else
+            {
+                if (afterQuote)
+                    throw new FormatException("Unexpected characters after a quoted CSV value.");
+                value.Append(character);
+            }
+        }
+
+        if (inQuotes)
+            throw new FormatException("The CSV file contains an unclosed quoted value.");
+        if (value.Length > 0 || record.Count > 0 || afterQuote)
+        {
+            record.Add(value.ToString());
+            records.Add(record);
+        }
+
+        return records;
+    }
+}
