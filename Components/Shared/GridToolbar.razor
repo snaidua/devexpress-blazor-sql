@@ -1,0 +1,19 @@
+<div class="grid-toolbar" role="toolbar" aria-label="Grid actions">
+    <button type="button" class="grid-toolbar-button" @onclick="OnAdd">＋ Add</button>
+    <button type="button" class="grid-toolbar-button" @onclick="OnInsert">↥ Insert</button>
+    <button type="button"
+            class="grid-toolbar-button grid-toolbar-delete"
+            title="@(CanDelete ? null : DeleteDisabledReason ?? "Select a row to delete.")"
+            disabled="@(!CanDelete)"
+            @onclick="OnDelete">− Delete</button>
+    <button type="button" class="grid-toolbar-button" @onclick="OnReset">↺ Reset</button>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnAdd { get; set; }
+    [Parameter] public EventCallback OnInsert { get; set; }
+    [Parameter] public EventCallback OnDelete { get; set; }
+    [Parameter] public EventCallback OnReset { get; set; }
+    [Parameter] public bool CanDelete { get; set; }
+    [Parameter] public string? DeleteDisabledReason { get; set; }
+}

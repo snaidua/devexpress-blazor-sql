@@ -26,7 +26,7 @@ else
 
 <AlertBanner Type="danger" Message="@errorMessage" OnDismiss="DismissError" />
 
-<section class="inventory-panel transaction-entry-panel">
+<section class="inventory-panel transaction-entry-panel" id="transaction-entry">
     <div class="panel-heading">
         <div>
             <div class="panel-title-row"><h2>New @(IsReceipt ? "receipt" : "issue")</h2></div>
@@ -88,17 +88,30 @@ else
 <section class="inventory-panel transaction-history-panel">
     <div class="panel-heading">
         <div>
-            <div class="panel-title-row"><h2>Posted @(IsReceipt ? "receipts" : "issues")</h2><span class="count-badge">@history.Count</span></div>
+            <div class="panel-title-row"><span class="panel-icon" aria-hidden="true">▦</span><h2>Posted @(IsReceipt ? "receipts" : "issues")</h2></div>
             <p class="panel-subtitle">Click a note cell to correct its reference. Posted quantities and items are locked.</p>
         </div>
-        <span class="edit-hint">✎ &nbsp; NOTE CELL EDITING</span>
+        <div class="table-tools">
+            <span class="grid-row-count">@history.Count rows</span>
+            <span class="edit-hint">✎ &nbsp; NOTE CELL EDITING</span>
+        </div>
     </div>
+    <GridToolbar OnAdd="GoToTransactionEntry"
+                 OnInsert="GoToTransactionEntry"
+                 OnReset="ResetHistoryGridAsync"
+                 CanDelete="false"
+                 DeleteDisabledReason="Posted transactions cannot be deleted." />
     <div class="grid-container">
-        <DxGrid Data="@history"
+        <DxGrid @ref="historyGrid"
+                Data="@history"
                 KeyFieldName="@nameof(InventoryTransaction.Id)"
                 EditMode="GridEditMode.EditCell"
                 EditModelSaving="SaveNoteAsync"
                 PageSize="10"
+                PageSizeSelectorVisible="true"
+                PageSizeSelectorItems="@(new int[] { 10, 25, 50 })"
+                @bind-PageIndex="historyPageIndex"
+                ShowFilterRow="true"
                 CssClass="inventory-grid">
             <Columns>
                 <DxGridDataColumn FieldName="@nameof(InventoryTransaction.DocumentNumber)" Caption="Document" Width="190px" ReadOnly="true" />
@@ -139,6 +152,8 @@ else
     private List<Product> items = [];
     private List<Vendor> vendors = [];
     private List<InventoryTransaction> history = [];
+    private DxGrid? historyGrid;
+    private int historyPageIndex;
     private string? errorMessage;
     private bool IsReceipt => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("receipts", StringComparison.OrdinalIgnoreCase);
     private string TransactionType => IsReceipt ? InventoryTransactionTypes.Receipt : InventoryTransactionTypes.Issue;
@@ -179,6 +194,23 @@ else
     private async Task LoadHistoryAsync()
     {
         history = (await TransactionManager.GetTransactionsAsync(TransactionType)).ToList();
+    }
+
+    private void GoToTransactionEntry()
+    {
+        var pageUrl = Navigation.Uri.Split('#')[0];
+        Navigation.NavigateTo($"{pageUrl}#transaction-entry");
+    }
+
+    private Task ResetHistoryGridAsync()
+    {
+        if (historyGrid is not null)
+        {
+            historyGrid.ClearFilter();
+            historyGrid.ClearSort();
+            historyPageIndex = 0;
+        }
+        return Task.CompletedTask;
     }
 
     private void OnProductChanged()

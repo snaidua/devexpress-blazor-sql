@@ -45,10 +45,11 @@
 <section class="inventory-panel" id="inventory">
     <div class="panel-heading">
         <div>
-            <div class="panel-title-row"><h2>Inventory</h2><span class="count-badge">@FilteredProducts.Count()</span></div>
+            <div class="panel-title-row"><span class="panel-icon" aria-hidden="true">▦</span><h2>Inventory</h2></div>
             <p class="panel-subtitle">Manage and keep track of your products.</p>
         </div>
         <div class="table-tools">
+            <span class="grid-row-count">@FilteredProducts.Count() rows</span>
             <label class="search-box">
                 <span aria-hidden="true">⌕</span>
                 <input type="search" placeholder="Search products..." aria-label="Search products" @bind="searchText" @bind:event="oninput" />
@@ -63,8 +64,24 @@
         </div>
     </div>
 
+    <GridToolbar OnAdd="StartAdd"
+                 OnInsert="StartAdd"
+                 OnDelete="DeleteSelectedProduct"
+                 OnReset="ResetGridAsync"
+                 CanDelete="@(selectedDataItem is Product)" />
+
     <div class="grid-container">
-        <DxGrid Data="@FilteredProducts" KeyFieldName="Id" PageSize="8" CssClass="inventory-grid">
+        <DxGrid Data="@FilteredProducts"
+                @ref="grid"
+                KeyFieldName="Id"
+                PageSize="8"
+                PageSizeSelectorVisible="true"
+                PageSizeSelectorItems="@(new int[] { 8, 12, 20, 50 })"
+                @bind-PageIndex="pageIndex"
+                SelectionMode="GridSelectionMode.Single"
+                @bind-SelectedDataItem="selectedDataItem"
+                ShowFilterRow="true"
+                CssClass="inventory-grid">
             <Columns>
                 <DxGridDataColumn FieldName="@nameof(Product.Sku)" Caption="SKU" Width="115px" />
                 <DxGridDataColumn FieldName="@nameof(Product.Name)" Caption="Product" MinWidth="180" />
@@ -132,6 +149,9 @@
 
 @code {
     private IReadOnlyList<Product> products = [];
+    private DxGrid? grid;
+    private object? selectedDataItem;
+    private int pageIndex;
     private string? errorMessage;
     private string searchText = string.Empty;
     private string selectedCategory = "All categories";
@@ -239,6 +259,26 @@
         confirmDeleteVisible = true;
     }
 
+    private void DeleteSelectedProduct()
+    {
+        if (selectedDataItem is Product product)
+            StartDelete(product);
+    }
+
+    private Task ResetGridAsync()
+    {
+        searchText = string.Empty;
+        selectedCategory = "All categories";
+        selectedDataItem = null;
+        if (grid is not null)
+        {
+            grid.ClearFilter();
+            grid.ClearSort();
+            pageIndex = 0;
+        }
+        return Task.CompletedTask;
+    }
+
     private Task CancelDelete()
     {
         confirmDeleteVisible = false;
@@ -258,6 +298,7 @@
         {
             await Inventory.DeleteProductAsync(id);
             products = await Inventory.GetProductsAsync();
+            selectedDataItem = null;
             confirmDeleteVisible = false;
             productToDelete = null;
             Toasts.Show("Product removed from your inventory.", ToastKind.Info);

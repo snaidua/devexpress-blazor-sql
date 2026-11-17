@@ -169,23 +169,34 @@ h1, h2, .brand-name, .metric-value { font-family: 'Segoe UI', Arial, sans-serif;
 .edit-hint { padding: 6px 9px; border: 1px solid #e7eee9; border-radius: 5px; color: #638576; background: #f5faf6; font-size: 8px; font-weight: 700; letter-spacing: .55px; white-space: nowrap; }
 .master-panel .grid-container, .transaction-history-panel .grid-container { min-height: 180px; }
 .master-panel .inventory-grid, .transaction-history-panel .inventory-grid { min-width: 760px; }
-.panel-heading { display: flex; min-height: 88px; align-items: center; justify-content: space-between; gap: 18px; padding: 17px 20px; }
+.panel-heading { display: flex; min-height: 68px; align-items: center; justify-content: space-between; gap: 18px; padding: 12px 16px; }
 .panel-title-row { display: flex; align-items: center; gap: 9px; margin-bottom: 4px; }
 .panel-title-row h2, .section-heading h2 { margin: 0; color: #2b3743; font-size: 15px; font-weight: 700; letter-spacing: -.25px; }
+.panel-icon { display: grid; width: 27px; height: 27px; flex: 0 0 27px; place-items: center; border: 1px solid #e6eeeb; border-radius: 7px; color: #4b8175; background: #f1f7f4; font-size: 14px; }
 .count-badge { min-width: 22px; padding: 3px 6px; border-radius: 12px; color: #73808d; background: #f1f3f6; font-size: 9px; text-align: center; }
 .panel-subtitle { margin: 0; color: #909ba7; font-size: 10px; }
 .table-tools { display: flex; align-items: center; gap: 8px; }
+.grid-row-count { color: #7d8995; font-size: 10px; font-weight: 600; white-space: nowrap; }
+.grid-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 7px 16px; border-top: 1px solid #f0f2f4; border-bottom: 1px solid #edf0f3; background: #fbfcfd; }
+.grid-toolbar-button { min-height: 27px; padding: 0 9px; border: 1px solid #e4e9ec; border-radius: 5px; color: #566571; background: #fff; font-size: 10px; font-weight: 600; }
+.grid-toolbar-button:hover:not(:disabled) { border-color: #cbd9d5; color: #356b60; background: #f5faf7; }
+.grid-toolbar-button:disabled { color: #aeb7bd; cursor: not-allowed; }
+.grid-toolbar-delete { color: #a85e5e; }
 .search-box { display: flex; width: 200px; height: 34px; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid #e5e9ed; border-radius: 6px; color: #97a2ad; background: #fff; }
 .search-box > span { font-size: 19px; line-height: 1; transform: rotate(-20deg); }
 .search-box input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 10px; }
 .search-box input::placeholder { color: #a7b0b9; }
 .select-control { height: 34px; max-width: 145px; padding: 0 25px 0 10px; border: 1px solid #e5e9ed; border-radius: 6px; outline: 0; color: #667381; background-color: #fff; font-size: 10px; }
-.grid-container { position: relative; min-height: 158px; border-top: 1px solid #edf0f3; }
+.grid-container { position: relative; max-height: 520px; min-height: 158px; overflow: auto; scrollbar-gutter: stable; border-top: 1px solid #edf0f3; scrollbar-color: #b7c3ca #f4f6f7; scrollbar-width: thin; }
 .inventory-grid { --dxbl-grid-header-bg: #f8fafb; font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; }
-.inventory-grid .dxbl-grid-table { border: 0; }
+.inventory-grid .dxbl-grid-table { border: 0; border-collapse: separate; border-spacing: 0; }
 .inventory-grid .dxbl-grid-header-row { color: #7d8995; font-size: 9px; font-weight: 700; letter-spacing: .35px; text-transform: uppercase; }
-.inventory-grid .dxbl-grid-header-row > th { padding-top: 12px; padding-bottom: 12px; border-bottom-color: #edf0f3; }
-.inventory-grid .dxbl-grid-data-row > td { height: 49px; color: #53606d; border-bottom-color: #f0f2f4; }
+.inventory-grid .dxbl-grid-header-row > th { padding-top: 8px; padding-bottom: 8px; border-right: 1px solid #edf0f3; border-bottom-color: #e8edf0; }
+.inventory-grid .dxbl-grid-header-row > th:last-child { border-right: 0; }
+.inventory-grid .dxbl-grid-filter-row > td { padding: 4px 6px; border-right: 1px solid #e8edf0; border-bottom: 1px solid #e8edf0; }
+.inventory-grid .dxbl-grid-filter-row > td:last-child { border-right: 0; }
+.inventory-grid .dxbl-grid-data-row > td { height: 40px; color: #53606d; border-right: 1px solid #f0f2f4; border-bottom-color: #f0f2f4; }
+.inventory-grid .dxbl-grid-data-row > td:last-child { border-right: 0; }
 .inventory-grid .dxbl-grid-data-row:hover > td { background: #fbfcfd; }
 .stock-value { display: inline-block; min-width: 25px; padding: 4px 7px; border-radius: 12px; font-size: 10px; font-weight: 600; text-align: center; }
 .stock-good { color: #54856b; background: #edf6f0; }
@@ -248,7 +259,7 @@ h1, h2, .brand-name, .metric-value { font-family: 'Segoe UI', Arial, sans-serif;
 .dialog-icon { display: grid; width: 39px; height: 39px; place-items: center; margin: 0 auto 14px; border-radius: 50%; color: #b9803d; background: #fbf2e7; font-size: 18px; font-weight: 700; }
 .confirm-dialog p { margin: 10px 0 19px; color: #7d8995; font-size: 11px; line-height: 1.6; }
 .confirm-dialog .dialog-actions { justify-content: center; margin-top: 0; }
-.transaction-entry-panel .panel-heading, .transaction-history-panel .panel-heading { min-height: 76px; }
+.transaction-entry-panel .panel-heading, .transaction-history-panel .panel-heading { min-height: 68px; }
 .transaction-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 16px; padding: 0 20px 20px; }
 .transaction-notes-field { grid-column: span 2; }
 .transaction-submit { display: flex; justify-content: flex-end; }
@@ -338,9 +349,9 @@ h1:focus { outline: none; }
     .metric-card { padding: 13px; }
     .metric-value { margin-top: 12px; font-size: 23px; }
     .metric-note { font-size: 9px; }
-    .panel-heading { align-items: flex-start; flex-direction: column; padding: 16px; }
+    .panel-heading { align-items: flex-start; flex-direction: column; gap: 12px; padding: 14px 16px; }
     .panel-heading .edit-hint { align-self: flex-start; }
-    .table-tools { width: 100%; }
+    .table-tools { width: 100%; flex-wrap: wrap; }
     .search-box { flex: 1; width: auto; }
     .select-control { max-width: 135px; }
     .category-grid { gap: 8px; }
@@ -370,4 +381,8 @@ h1:focus { outline: none; }
     .adjustment-posted-lines .adjustment-lines-table { min-width: 490px; }
     .product-dialog { padding: 19px; }
     .page-footer span:last-child { display: none; }
+}
+
+@media (max-width: 760px) {
+    .inventory-grid { min-width: 760px; }
 }

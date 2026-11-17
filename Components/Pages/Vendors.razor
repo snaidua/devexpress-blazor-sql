@@ -20,20 +20,34 @@
 <section class="inventory-panel master-panel">
     <div class="panel-heading">
         <div>
-            <div class="panel-title-row"><h2>Vendors</h2><span class="count-badge">@vendors.Count</span></div>
+            <div class="panel-title-row"><span class="panel-icon" aria-hidden="true">▦</span><h2>Vendors</h2></div>
             <p class="panel-subtitle">Click a cell to edit. Changes save when you leave the cell.</p>
         </div>
-        <span class="edit-hint">✎ &nbsp; CELL EDITING</span>
+        <div class="table-tools">
+            <span class="grid-row-count">@vendors.Count rows</span>
+            <span class="edit-hint">✎ &nbsp; CELL EDITING</span>
+        </div>
     </div>
+    <GridToolbar OnAdd="AddVendorAsync"
+                 OnInsert="InsertVendorAsync"
+                 OnDelete="DeleteSelectedVendor"
+                 OnReset="ResetGridAsync"
+                 CanDelete="@(selectedDataItem is Vendor)" />
     <div class="grid-container">
         <DxGrid @ref="grid"
                 Data="@vendors"
                 KeyFieldName="@nameof(Vendor.Id)"
+                SelectionMode="GridSelectionMode.Single"
+                @bind-SelectedDataItem="selectedDataItem"
                 EditMode="GridEditMode.EditCell"
-                EditNewRowPosition="GridEditNewRowPosition.Bottom"
+                @bind-EditNewRowPosition="editNewRowPosition"
                 CustomizeEditModel="CustomizeEditModel"
                 EditModelSaving="SaveEditAsync"
                 PageSize="12"
+                PageSizeSelectorVisible="true"
+                PageSizeSelectorItems="@(new int[] { 12, 25, 50 })"
+                @bind-PageIndex="pageIndex"
+                ShowFilterRow="true"
                 CssClass="inventory-grid">
             <Columns>
                 <DxGridDataColumn FieldName="@nameof(Vendor.Code)" Caption="Vendor code" Width="140px" />
@@ -55,6 +69,11 @@
 @code {
     private DxGrid? grid;
     private List<Vendor> vendors = [];
+    private object? selectedDataItem;
+    private GridEditNewRowPosition editNewRowPosition = GridEditNewRowPosition.Bottom;
+    private int pageIndex;
+    private Vendor? vendorToDelete;
+    private bool confirmDeleteVisible;
     private string? errorMessage;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
@@ -81,8 +100,84 @@
     private async Task AddVendorAsync()
     {
         errorMessage = null;
+        await StartNewRowAsync(GridEditNewRowPosition.Bottom);
+    }
+
+    private async Task InsertVendorAsync()
+    {
+        errorMessage = null;
+        await StartNewRowAsync(GridEditNewRowPosition.Top);
+    }
+
+    private async Task StartNewRowAsync(GridEditNewRowPosition position)
+    {
+        if (grid is null)
+            return;
+
+        editNewRowPosition = position;
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+        await grid.StartEditNewRowAsync(nameof(Vendor.Name));
+    }
+
+    private void DeleteSelectedVendor()
+    {
+        if (selectedDataItem is Vendor vendor)
+        {
+            vendorToDelete = vendor;
+            confirmDeleteVisible = true;
+        }
+    }
+
+    private Task ResetGridAsync()
+    {
+        selectedDataItem = null;
         if (grid is not null)
-            await grid.StartEditNewRowAsync(nameof(Vendor.Name));
+        {
+            grid.ClearFilter();
+            grid.ClearSort();
+            pageIndex = 0;
+        }
+        return Task.CompletedTask;
+    }
+
+    private Task CancelDeleteAsync()
+    {
+        confirmDeleteVisible = false;
+        vendorToDelete = null;
+        return Task.CompletedTask;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (vendorToDelete is null)
+            return;
+
+        var vendor = vendorToDelete;
+        Busy.SetBusy(true);
+        errorMessage = null;
+        try
+        {
+            await Inventory.DeleteVendorAsync(vendor.Id);
+            vendors = (await Inventory.GetVendorsAsync()).ToList();
+            selectedDataItem = null;
+            Toasts.Show("Vendor removed.", ToastKind.Info);
+        }
+        catch (InvalidOperationException exception)
+        {
+            errorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Unable to delete vendor {VendorId}.", vendor.Id);
+            errorMessage = "The vendor could not be deleted. Check the database connection and try again.";
+        }
+        finally
+        {
+            confirmDeleteVisible = false;
+            vendorToDelete = null;
+            Busy.SetBusy(false);
+        }
     }
 
     private void CustomizeEditModel(GridCustomizeEditModelEventArgs args)
@@ -127,3 +222,9 @@
 
     private void DismissError() => errorMessage = null;
 }
+
+<ConfirmDialog Visible="@confirmDeleteVisible"
+               Title="Delete vendor?"
+               Message="@($"Delete {vendorToDelete?.Name ?? "this vendor"}? This action cannot be undone.")"
+               OnConfirm="ConfirmDeleteAsync"
+               OnCancel="CancelDeleteAsync" />

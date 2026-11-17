@@ -103,6 +103,19 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> conte
         return await db.Vendors.AsNoTracking().OrderBy(vendor => vendor.Name).ToListAsync(cancellationToken);
     }
 
+    public async Task DeleteVendorAsync(int id, CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var vendor = await db.Vendors.FindAsync([id], cancellationToken);
+        if (vendor is null)
+        throw new InvalidOperationException("This vendor no longer exists. Refresh the list and try again.");
+        if (await db.InventoryTransactions.AnyAsync(transaction => transaction.VendorId == id, cancellationToken))
+        throw new InvalidOperationException("This vendor has posted receipts and cannot be deleted.");
+
+        db.Vendors.Remove(vendor);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task SaveVendorAsync(Vendor vendor, CancellationToken cancellationToken = default)
     {
         var code = vendor.Code.Trim().ToUpperInvariant();
